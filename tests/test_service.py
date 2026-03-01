@@ -125,20 +125,33 @@ def test_should_expose_transient_errors_tuple():
 # sync_completion_stream — queue-based true streaming
 # ---------------------------------------------------------------------------
 
+def _make_async_iter(items):
+    """Return an async iterable from a list of items."""
+    class _AsyncIter:
+        def __init__(self):
+            self._items = iter(items)
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._items)
+            except StopIteration:
+                raise StopAsyncIteration
+
+    return _AsyncIter()
+
+
 def test_should_stream_chunks_via_queue():
     """sync_completion_stream yields chunks as they arrive (true streaming)."""
     from aifw.service import sync_completion_stream
 
-    async def _fake_acompletion(**kwargs):
-        class FakeChunk:
-            def __init__(self, text):
-                self.choices = [MagicMock(delta=MagicMock(content=text))]
-
-        async def _iter():
-            for word in ["Hello", " ", "world"]:
-                yield FakeChunk(word)
-
-        return _iter()
+    chunks_data = []
+    for word in ["Hello", " ", "world"]:
+        chunk = MagicMock()
+        chunk.choices[0].delta.content = word
+        chunks_data.append(chunk)
 
     config = {
         "model_string": "openai/gpt-4o",
@@ -147,6 +160,9 @@ def test_should_stream_chunks_via_queue():
         "max_tokens": 100,
         "temperature": 0.7,
     }
+
+    async def _fake_acompletion(**kwargs):
+        return _make_async_iter(chunks_data)
 
     with patch("aifw.service.get_model_config", new=AsyncMock(return_value=config)), \
          patch("litellm.acompletion", side_effect=_fake_acompletion):
