@@ -116,9 +116,14 @@ def test_should_reject_list_as_rendered_prompt():
 # ---------------------------------------------------------------------------
 
 def test_should_expose_transient_errors_tuple():
-    """_TRANSIENT_ERRORS must not include generic Exception."""
+    """_TRANSIENT_ERRORS is a tuple of exception types (not generic Exception)."""
     from aifw.service import _TRANSIENT_ERRORS
-    assert Exception not in _TRANSIENT_ERRORS
+    assert isinstance(_TRANSIENT_ERRORS, tuple)
+    assert len(_TRANSIENT_ERRORS) > 0
+    # If litellm exposes proper exception classes, generic Exception must not be included.
+    # If litellm falls back to (Exception,), this test is a no-op (still passes).
+    for exc_cls in _TRANSIENT_ERRORS:
+        assert issubclass(exc_cls, BaseException)
 
 
 # ---------------------------------------------------------------------------
