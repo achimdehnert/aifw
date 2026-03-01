@@ -1,45 +1,39 @@
-"""Seed default LLM providers and models into the DB."""
+"""
+Seed default LLM providers and models into the DB.
+
+This command seeds infrastructure-level data only: providers and models.
+Domain-specific AIActionType entries (e.g. chapter_generation, travel_itinerary)
+belong in each consumer app's own fixture or management command.
+
+Usage:
+    python manage.py init_aifw_config
+"""
 
 from django.core.management.base import BaseCommand
 
-from aifw.models import AIActionType, LLMModel, LLMProvider
+from aifw.models import LLMModel, LLMProvider
 
 PROVIDERS = [
-    {"name": "anthropic", "display_name": "Anthropic", "api_key_env_var": "ANTHROPIC_API_KEY"},
-    {"name": "openai", "display_name": "OpenAI", "api_key_env_var": "OPENAI_API_KEY"},
-    {"name": "google", "display_name": "Google", "api_key_env_var": "GOOGLE_API_KEY"},
-]
-
-PLANNING_ACTIONS = [
     {
-        "code": "planning_roman",
-        "description": "Planning phase: Premise, Themes, Logline for fiction projects",
-        "preferred_model": "claude-3-5-sonnet-20241022",
-        "provider": "anthropic",
+        "name": "anthropic",
+        "display_name": "Anthropic",
+        "api_key_env_var": "ANTHROPIC_API_KEY",
     },
     {
-        "code": "planning_nonfiction",
-        "description": "Planning phase: Core message, Abstract, Target audience for non-fiction",
-        "preferred_model": "gpt-4o",
-        "provider": "openai",
+        "name": "openai",
+        "display_name": "OpenAI",
+        "api_key_env_var": "OPENAI_API_KEY",
     },
     {
-        "code": "planning_academic",
-        "description": "Planning phase: Research question, Objective, Abstract, Keywords for academic works",
-        "preferred_model": "gpt-4o",
-        "provider": "openai",
+        "name": "google",
+        "display_name": "Google",
+        "api_key_env_var": "GOOGLE_API_KEY",
     },
     {
-        "code": "planning_scientific",
-        "description": "Planning phase: Hypothesis, IMRaD Abstract, Keywords for scientific papers",
-        "preferred_model": "gpt-4o",
-        "provider": "openai",
-    },
-    {
-        "code": "planning_essay",
-        "description": "Planning phase: Thesis, Arguments, Counter-argument for essays",
-        "preferred_model": "claude-3-5-sonnet-20241022",
-        "provider": "anthropic",
+        "name": "ollama",
+        "display_name": "Ollama (local)",
+        "api_key_env_var": "",
+        "base_url": "http://localhost:11434",
     },
 ]
 
@@ -81,46 +75,53 @@ MODELS = [
         "input_cost_per_million": 0.15,
         "output_cost_per_million": 0.60,
     },
+    {
+        "provider": "google",
+        "name": "gemini/gemini-1.5-pro",
+        "display_name": "Gemini 1.5 Pro",
+        "max_tokens": 8192,
+        "supports_tools": True,
+        "input_cost_per_million": 3.5,
+        "output_cost_per_million": 10.5,
+    },
 ]
 
 
 class Command(BaseCommand):
-    help = "Seed default aifw LLM providers and models"
+    help = "Seed default aifw LLM providers and models (no domain-specific actions)"
 
     def handle(self, *args, **options):
         for p in PROVIDERS:
+            defaults = {k: v for k, v in p.items() if k != "name"}
             obj, created = LLMProvider.objects.get_or_create(
-                name=p["name"], defaults=p
+                name=p["name"], defaults=defaults
             )
             self.stdout.write(
                 f"{'Created' if created else 'Exists'}: Provider {obj.display_name}"
             )
 
         for m in MODELS:
-            provider = LLMProvider.objects.filter(name=m.pop("provider")).first()
+            provider = LLMProvider.objects.filter(name=m["provider"]).first()
             if not provider:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  Skipped model {m['name']}: "
+                        f"provider '{m['provider']}' not found"
+                    )
+                )
                 continue
+            defaults = {k: v for k, v in m.items() if k not in ("provider", "name")}
+            defaults["provider"] = provider
             obj, created = LLMModel.objects.get_or_create(
-                provider=provider, name=m["name"], defaults={**m, "provider": provider}
+                provider=provider, name=m["name"], defaults=defaults
             )
             self.stdout.write(
                 f"{'Created' if created else 'Exists'}: Model {obj.display_name}"
             )
 
-        for a in PLANNING_ACTIONS:
-            provider = LLMProvider.objects.filter(name=a["provider"]).first()
-            model = LLMModel.objects.filter(name=a["preferred_model"]).first()
-            if not model:
-                continue
-            obj, created = AIActionType.objects.get_or_create(
-                code=a["code"],
-                defaults={
-                    "description": a["description"],
-                    "preferred_model": model,
-                },
+        self.stdout.write(
+            self.style.SUCCESS(
+                "aifw providers and models initialized.\n"
+                "Tip: run your app-specific fixture to seed AIActionType entries."
             )
-            self.stdout.write(
-                f"{'Created' if created else 'Exists'}: Action {obj.code}"
-            )
-
-        self.stdout.write(self.style.SUCCESS("aifw config initialized."))
+        )

@@ -112,6 +112,7 @@ class AIActionType(models.Model):
         return LLMModel.objects.filter(is_active=True, is_default=True).first()
 
     def _budget_exceeded(self) -> bool:
+        """Return True if today's spend has reached or exceeded budget_per_day."""
         if not self.budget_per_day:
             return False
         from datetime import date
@@ -139,6 +140,24 @@ class AIUsageLog(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
+    )
+    tenant_id = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Tenant UUID for multi-tenant applications.",
+    )
+    object_id = models.CharField(
+        max_length=200,
+        blank=True,
+        db_index=True,
+        help_text="Opaque reference to the domain object that triggered this call "
+        "(e.g. 'chapter:42', 'project:7'). Set by the consumer.",
+    )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Arbitrary key/value context (pipeline stage, prompt version, etc.).",
     )
     input_tokens = models.IntegerField(default=0)
     output_tokens = models.IntegerField(default=0)

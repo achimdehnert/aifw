@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aifw.schema import LLMResult
+from aifw.schema import LLMResult, RenderedPromptProtocol
 from aifw.service import _build_model_string, _get_api_key, _parse_tool_calls, sync_completion
 
 
@@ -87,6 +87,99 @@ async def test_completion_no_model_configured():
         assert "unknown_action" in result.error
 
 
+# ---------------------------------------------------------------------------
+# RenderedPromptProtocol tests
+# ---------------------------------------------------------------------------
+
+def test_should_recognise_rendered_prompt_protocol():
+    """Any object with system+user attributes satisfies RenderedPromptProtocol."""
+    class FakeRendered:
+        system = "You are a writer."
+        user = "Write a chapter."
+
+    assert isinstance(FakeRendered(), RenderedPromptProtocol)
+
+
+def test_should_reject_plain_dict_as_rendered_prompt():
+    """A plain dict does NOT satisfy RenderedPromptProtocol."""
+    assert not isinstance({"system": "x", "user": "y"}, RenderedPromptProtocol)
+
+
+def test_should_reject_list_as_rendered_prompt():
+    """A messages list does NOT satisfy RenderedPromptProtocol."""
+    messages = [{"role": "user", "content": "hi"}]
+    assert not isinstance(messages, RenderedPromptProtocol)
+
+
+# ---------------------------------------------------------------------------
+# Retry — only transient errors
+# ---------------------------------------------------------------------------
+
+def test_should_expose_transient_errors_tuple():
+    """_TRANSIENT_ERRORS must not include generic Exception."""
+    from aifw.service import _TRANSIENT_ERRORS
+    assert Exception not in _TRANSIENT_ERRORS
+
+
+# ---------------------------------------------------------------------------
+# sync_completion_stream — queue-based true streaming
+# ---------------------------------------------------------------------------
+
+def test_should_stream_chunks_via_queue():
+    """sync_completion_stream yields chunks as they arrive (true streaming)."""
+    from aifw.service import sync_completion_stream
+
+    async def _fake_acompletion(**kwargs):
+        class FakeChunk:
+            def __init__(self, text):
+                self.choices = [MagicMock(delta=MagicMock(content=text))]
+
+        async def _iter():
+            for word in ["Hello", " ", "world"]:
+                yield FakeChunk(word)
+
+        return _iter()
+
+    config = {
+        "model_string": "openai/gpt-4o",
+        "api_key": "sk-test",
+        "api_base": None,
+        "max_tokens": 100,
+        "temperature": 0.7,
+    }
+
+    with patch("aifw.service.get_model_config", new=AsyncMock(return_value=config)), \
+         patch("litellm.acompletion", side_effect=_fake_acompletion):
+        chunks = list(
+            sync_completion_stream("story_writing", [{"role": "user", "content": "hi"}])
+        )
+
+    assert chunks == ["Hello", " ", "world"]
+
+
+def test_should_propagate_exception_from_stream():
+    """sync_completion_stream raises if the producer throws."""
+    from aifw.service import sync_completion_stream
+
+    async def _failing_acompletion(**kwargs):
+        raise RuntimeError("LLM exploded")
+
+    config = {
+        "model_string": "openai/gpt-4o",
+        "api_key": "sk-test",
+        "api_base": None,
+        "max_tokens": 100,
+        "temperature": 0.7,
+    }
+
+    with patch("aifw.service.get_model_config", new=AsyncMock(return_value=config)), \
+         patch("litellm.acompletion", side_effect=_failing_acompletion):
+        with pytest.raises(RuntimeError, match="LLM exploded"):
+            list(
+                sync_completion_stream("story_writing", [{"role": "user", "content": "hi"}])
+            )
+
+
 @pytest.mark.asyncio
 async def test_completion_success():
     from aifw.service import completion
@@ -111,7 +204,9 @@ async def test_completion_success():
         "model_name": "claude-3-5-sonnet-20241022",
     })), patch("aifw.service._log_usage", new=AsyncMock()), \
          patch("litellm.acompletion", new=AsyncMock(return_value=mock_response)):
-        result = await completion("story_writing", [{"role": "user", "content": "Write a story"}])
+        result = await completion(
+            "story_writing", [{"role": "user", "content": "Write a story"}]
+        )
         assert result.success is True
         assert result.content == "Hello world"
         assert result.input_tokens == 10

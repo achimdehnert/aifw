@@ -8,6 +8,14 @@ New in 0.2.0:
 - Streaming via completion_stream() / sync_completion_stream()
 - Tenacity retry with exponential backoff (rate limits, 503s)
 - RenderedPrompt integration — pass promptfw output directly
+
+New in 0.4.0:
+- Retry restricted to transient errors only (RateLimitError, ServiceUnavailableError,
+  Timeout, APIConnectionError) — avoids retrying auth/validation failures
+- Django signals for cache invalidation on model changes
+- AIUsageLog extended with tenant_id, object_id, metadata
+- sync_completion_stream uses queue.Queue for true streaming
+- RenderedPromptProtocol (typing.Protocol) replaces duck-typing
 """
 
 from __future__ import annotations
@@ -17,14 +25,16 @@ import concurrent.futures
 import json
 import logging
 import os
+import queue
 import time
+import threading
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 import litellm
 from asgiref.sync import sync_to_async
 
-from aifw.schema import LLMResult, ToolCall
+from aifw.schema import LLMResult, RenderedPromptProtocol, ToolCall
 
 if TYPE_CHECKING:
     pass
@@ -61,9 +71,23 @@ try:
         wait_exponential,
     )
 
+    try:
+        from litellm.exceptions import (
+            APIConnectionError,
+            RateLimitError,
+            ServiceUnavailableError,
+            Timeout,
+        )
+
+        _TRANSIENT_ERRORS = (
+            RateLimitError, ServiceUnavailableError, Timeout, APIConnectionError
+        )
+    except ImportError:
+        _TRANSIENT_ERRORS = (Exception,)  # type: ignore[assignment]
+
     def _make_retry(fn):  # type: ignore[return]
         return retry(
-            retry=retry_if_exception_type((Exception,)),
+            retry=retry_if_exception_type(_TRANSIENT_ERRORS),
             stop=stop_after_attempt(3),
             wait=wait_exponential(multiplier=1, min=1, max=10),
             reraise=True,
@@ -120,13 +144,41 @@ def _parse_tool_calls(message) -> list[ToolCall]:
 
 
 def _rendered_prompt_to_messages(rendered) -> list[dict[str, Any]]:
-    """Convert a promptfw RenderedPrompt to LiteLLM messages list."""
+    """Convert a promptfw RenderedPrompt to LiteLLM messages list.
+
+    Includes few_shot_messages (interleaved user/assistant turns) if present.
+    """
     messages: list[dict[str, Any]] = []
     if rendered.system:
         messages.append({"role": "system", "content": rendered.system})
+    few_shot = getattr(rendered, "few_shot_messages", None)
+    if few_shot:
+        messages.extend(few_shot)
     if rendered.user:
         messages.append({"role": "user", "content": rendered.user})
     return messages
+
+
+def _rendered_prompt_to_overrides(rendered) -> dict[str, Any]:
+    """Extract response_format / output_schema from a promptfw RenderedPrompt.
+
+    Maps promptfw ``response_format`` values to the LiteLLM
+    ``response_format`` parameter:
+    - ``"json_object"``  → ``{"type": "json_object"}``
+    - ``"json_schema"``  → ``{"type": "json_schema", "json_schema": output_schema}``
+    - ``"text"`` / None → no override (default LiteLLM behaviour)
+    """
+    overrides: dict[str, Any] = {}
+    rf = getattr(rendered, "response_format", None)
+    if rf == "json_object":
+        overrides["response_format"] = {"type": "json_object"}
+    elif rf == "json_schema":
+        schema = getattr(rendered, "output_schema", None)
+        if schema:
+            overrides["response_format"] = {"type": "json_schema", "json_schema": schema}
+        else:
+            overrides["response_format"] = {"type": "json_object"}
+    return overrides
 
 
 # ---------------------------------------------------------------------------
@@ -273,9 +325,15 @@ async def completion(
     """
     Async LLM completion with DB-driven config, TTL cache, and retry.
 
-    ``messages`` can be a list of dicts OR a ``promptfw.RenderedPrompt``.
+    ``messages`` can be a list of dicts OR a ``promptfw.RenderedPrompt``
+    (or any object satisfying ``RenderedPromptProtocol``).
+    If a ``RenderedPrompt`` is passed, ``response_format`` and ``output_schema``
+    are automatically forwarded to LiteLLM (json_object / json_schema).
     """
-    if hasattr(messages, "system") and hasattr(messages, "user"):
+    if isinstance(messages, RenderedPromptProtocol):
+        prompt_overrides = _rendered_prompt_to_overrides(messages)
+        for k, v in prompt_overrides.items():
+            overrides.setdefault(k, v)
         messages = _rendered_prompt_to_messages(messages)
 
     config = await get_model_config(action_code)
@@ -342,7 +400,10 @@ async def completion_stream(
         async for chunk in completion_stream("story_writing", messages):
             print(chunk, end="", flush=True)
     """
-    if hasattr(messages, "system") and hasattr(messages, "user"):
+    if isinstance(messages, RenderedPromptProtocol):
+        prompt_overrides = _rendered_prompt_to_overrides(messages)
+        for k, v in prompt_overrides.items():
+            overrides.setdefault(k, v)
         messages = _rendered_prompt_to_messages(messages)
 
     config = await get_model_config(action_code)
@@ -368,6 +429,10 @@ def sync_completion_stream(
     """
     Synchronous streaming generator — for Django views (StreamingHttpResponse).
 
+    Yields text chunks as they arrive from the LLM (true streaming via
+    queue.Queue). A producer thread runs the async event loop; the main
+    thread consumes from the queue so Django can flush chunks immediately.
+
     Usage::
 
         def my_view(request):
@@ -376,29 +441,43 @@ def sync_completion_stream(
                 content_type="text/event-stream",
             )
     """
-    if hasattr(messages, "system") and hasattr(messages, "user"):
+    if isinstance(messages, RenderedPromptProtocol):
+        prompt_overrides = _rendered_prompt_to_overrides(messages)
+        for k, v in prompt_overrides.items():
+            overrides.setdefault(k, v)
         messages = _rendered_prompt_to_messages(messages)
 
-    config_future: dict[str, Any] = {}
+    _DONE = object()
+    _ERROR = object()
+    chunk_queue: queue.Queue = queue.Queue(maxsize=256)
 
-    async def _collect():
-        config = await get_model_config(action_code)
-        config_future.update(config)
-        kwargs = _build_kwargs(config, messages, dict(overrides))
-        kwargs["stream"] = True
-        response = await litellm.acompletion(**kwargs)
-        async for chunk in response:
-            delta = chunk.choices[0].delta
-            if delta and delta.content:
-                yield delta.content
+    async def _produce() -> None:
+        try:
+            config = await get_model_config(action_code)
+            kwargs = _build_kwargs(config, messages, dict(overrides))
+            kwargs["stream"] = True
+            response = await litellm.acompletion(**kwargs)
+            async for chunk in response:
+                delta = chunk.choices[0].delta
+                if delta and delta.content:
+                    chunk_queue.put(delta.content)
+            chunk_queue.put(_DONE)
+        except Exception as exc:
+            chunk_queue.put((_ERROR, exc))
 
-    async def _to_list():
-        return [chunk async for chunk in _collect()]
+    def _run_producer() -> None:
+        asyncio.run(_produce())
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        chunks = pool.submit(asyncio.run, _to_list()).result(timeout=180)
+    producer = threading.Thread(target=_run_producer, daemon=True)
+    producer.start()
 
-    yield from chunks
+    while True:
+        item = chunk_queue.get(timeout=180)
+        if item is _DONE:
+            break
+        if isinstance(item, tuple) and item[0] is _ERROR:
+            raise item[1]
+        yield item
 
 
 def sync_completion(

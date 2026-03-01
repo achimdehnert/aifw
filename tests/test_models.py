@@ -91,3 +91,48 @@ def test_usage_log_estimated_cost(action_type, model):
         success=True,
     )
     assert float(log.estimated_cost) == pytest.approx(18.0)
+
+
+@pytest.mark.django_db
+def test_usage_log_tenant_id_stored(action_type, model):
+    import uuid
+    tid = uuid.uuid4()
+    log = AIUsageLog.objects.create(
+        action_type=action_type,
+        model_used=model,
+        tenant_id=tid,
+        input_tokens=10,
+        output_tokens=5,
+        success=True,
+    )
+    assert log.tenant_id == tid
+
+
+@pytest.mark.django_db
+def test_usage_log_object_id_and_metadata(action_type, model):
+    log = AIUsageLog.objects.create(
+        action_type=action_type,
+        model_used=model,
+        object_id="chapter:42",
+        metadata={"pipeline_stage": "write", "prompt_version": "v3"},
+        input_tokens=10,
+        output_tokens=5,
+        success=True,
+    )
+    assert log.object_id == "chapter:42"
+    assert log.metadata["pipeline_stage"] == "write"
+    assert log.metadata["prompt_version"] == "v3"
+
+
+@pytest.mark.django_db
+def test_usage_log_tenant_id_defaults_null(action_type, model):
+    log = AIUsageLog.objects.create(
+        action_type=action_type,
+        model_used=model,
+        input_tokens=1,
+        output_tokens=1,
+        success=True,
+    )
+    assert log.tenant_id is None
+    assert log.object_id == ""
+    assert log.metadata == {}

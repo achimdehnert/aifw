@@ -4,9 +4,9 @@ aifw — Django AI Services Framework
 DB-driven LLM provider, model & usage management for Django projects.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.4.0"
 
-from aifw.schema import LLMResult, ToolCall
+from aifw.schema import LLMResult, RenderedPromptProtocol, ToolCall
 from aifw.service import (
     completion,
     completion_stream,
@@ -18,6 +18,7 @@ from aifw.service import (
 
 __all__ = [
     "LLMResult",
+    "RenderedPromptProtocol",
     "ToolCall",
     "completion",
     "completion_stream",

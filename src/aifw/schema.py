@@ -1,9 +1,28 @@
-"""Shared data classes for aifw LLM responses."""
+"""Shared data classes and protocols for aifw LLM responses."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
+
+
+@runtime_checkable
+class RenderedPromptProtocol(Protocol):
+    """Structural interface for promptfw.RenderedPrompt (and compatible types).
+
+    Any object with ``system`` and ``user`` string attributes satisfies this
+    protocol.  Pass such objects directly to ``completion()`` or
+    ``sync_completion()`` instead of manually building a messages list.
+
+    Example (promptfw)::
+
+        from promptfw import PromptRenderer
+        rendered = PromptRenderer().render(stack, context)
+        result = sync_completion("story_writing", rendered)
+    """
+
+    system: str
+    user: str
 
 
 @dataclass(frozen=True)
