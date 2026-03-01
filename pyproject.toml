@@ -1,6 +1,6 @@
 [project]
 name = "aifw"
-version = "0.1.0"
+version = "0.2.0"
 description = "Django AI Services Framework — DB-driven LLM provider, model & usage management"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -23,9 +23,14 @@ classifiers = [
 dependencies = [
     "Django>=5.0,<6.0",
     "litellm>=1.30",
+    "tenacity>=8.2",
+    "asgiref>=3.7",
 ]
 
 [project.optional-dependencies]
+streaming = [
+    "litellm[streaming]>=1.30",
+]
 dev = [
     "pytest>=8.0",
     "pytest-django>=4.8",

@@ -7,8 +7,12 @@ Zero code changes required for model/provider swaps.
 
 from __future__ import annotations
 
+import logging
+
 from django.conf import settings
 from django.db import models
+
+logger = logging.getLogger(__name__)
 
 
 class LLMProvider(models.Model):
@@ -84,6 +88,10 @@ class AIActionType(models.Model):
     max_tokens = models.IntegerField(default=2000)
     temperature = models.FloatField(default=0.7)
     is_active = models.BooleanField(default=True)
+    budget_per_day = models.DecimalField(
+        max_digits=10, decimal_places=4, null=True, blank=True,
+        help_text="Max USD spend per day. Switches to fallback model when exceeded."
+    )
 
     class Meta:
         app_label = "aifw"
@@ -96,10 +104,25 @@ class AIActionType(models.Model):
 
     def get_model(self) -> LLMModel | None:
         if self.default_model and self.default_model.is_active:
-            return self.default_model
+            if not self._budget_exceeded():
+                return self.default_model
+            logger.info("Budget exceeded for '%s' — switching to fallback", self.code)
         if self.fallback_model and self.fallback_model.is_active:
             return self.fallback_model
         return LLMModel.objects.filter(is_active=True, is_default=True).first()
+
+    def _budget_exceeded(self) -> bool:
+        if not self.budget_per_day:
+            return False
+        from datetime import date
+        today_spend = (
+            AIUsageLog.objects.filter(
+                action_type=self,
+                created_at__date=date.today(),
+                success=True,
+            ).aggregate(total=models.Sum("estimated_cost"))["total"] or 0
+        )
+        return float(today_spend) >= float(self.budget_per_day)
 
 
 class AIUsageLog(models.Model):
