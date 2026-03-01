@@ -10,6 +10,39 @@ PROVIDERS = [
     {"name": "google", "display_name": "Google", "api_key_env_var": "GOOGLE_API_KEY"},
 ]
 
+PLANNING_ACTIONS = [
+    {
+        "code": "planning_roman",
+        "description": "Planning phase: Premise, Themes, Logline for fiction projects",
+        "preferred_model": "claude-3-5-sonnet-20241022",
+        "provider": "anthropic",
+    },
+    {
+        "code": "planning_nonfiction",
+        "description": "Planning phase: Core message, Abstract, Target audience for non-fiction",
+        "preferred_model": "gpt-4o",
+        "provider": "openai",
+    },
+    {
+        "code": "planning_academic",
+        "description": "Planning phase: Research question, Objective, Abstract, Keywords for academic works",
+        "preferred_model": "gpt-4o",
+        "provider": "openai",
+    },
+    {
+        "code": "planning_scientific",
+        "description": "Planning phase: Hypothesis, IMRaD Abstract, Keywords for scientific papers",
+        "preferred_model": "gpt-4o",
+        "provider": "openai",
+    },
+    {
+        "code": "planning_essay",
+        "description": "Planning phase: Thesis, Arguments, Counter-argument for essays",
+        "preferred_model": "claude-3-5-sonnet-20241022",
+        "provider": "anthropic",
+    },
+]
+
 MODELS = [
     {
         "provider": "anthropic",
@@ -72,6 +105,22 @@ class Command(BaseCommand):
             )
             self.stdout.write(
                 f"{'Created' if created else 'Exists'}: Model {obj.display_name}"
+            )
+
+        for a in PLANNING_ACTIONS:
+            provider = LLMProvider.objects.filter(name=a["provider"]).first()
+            model = LLMModel.objects.filter(name=a["preferred_model"]).first()
+            if not model:
+                continue
+            obj, created = AIActionType.objects.get_or_create(
+                code=a["code"],
+                defaults={
+                    "description": a["description"],
+                    "preferred_model": model,
+                },
+            )
+            self.stdout.write(
+                f"{'Created' if created else 'Exists'}: Action {obj.code}"
             )
 
         self.stdout.write(self.style.SUCCESS("aifw config initialized."))
