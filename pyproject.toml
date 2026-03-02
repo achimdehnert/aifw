@@ -1,6 +1,6 @@
 [project]
 name = "aifw"
-version = "0.4.0"
+version = "0.5.0"
 description = "Django AI Services Framework — DB-driven LLM provider, model & usage management"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -28,25 +28,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-streaming = [
-    "litellm[streaming]>=1.30",
-]
 dev = [
     "pytest>=8.0",
     "pytest-django>=4.8",
     "pytest-asyncio>=0.23",
-    "pytest-mock>=3.12",
+    "hatch",
 ]
-testing = [
-    "pytest>=8.0",
-    "pytest-django>=4.8",
-    "pytest-asyncio>=0.23",
-    "pytest-mock>=3.12",
-]
-
-[project.urls]
-Homepage = "https://github.com/achimdehnert/platform"
-Repository = "https://github.com/achimdehnert/platform/tree/main/packages/aifw"
 
 [build-system]
 requires = ["hatchling"]
@@ -57,11 +44,11 @@ packages = ["src/aifw"]
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "tests.settings"
-python_files = ["test_*.py"]
-pythonpath = ["src", "."]
-testpaths = ["tests"]
 asyncio_mode = "auto"
+pythonpath = ["src", "."]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
