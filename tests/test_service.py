@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from aifw.schema import LLMResult, RenderedPromptProtocol
-from aifw.service import _build_model_string, _get_api_key, _parse_tool_calls, sync_completion
+from aifw.service import _build_model_string, _get_api_key, _parse_tool_calls
 
 
 def test_build_model_string_openai():
@@ -13,7 +13,10 @@ def test_build_model_string_openai():
 
 
 def test_build_model_string_anthropic():
-    assert _build_model_string("anthropic", "claude-3-5-sonnet") == "anthropic/claude-3-5-sonnet"
+    assert (
+        _build_model_string("anthropic", "claude-3-5-sonnet")
+        == "anthropic/claude-3-5-sonnet"
+    )
 
 
 def test_build_model_string_case_insensitive():
@@ -82,7 +85,9 @@ async def test_completion_no_model_configured():
         "provider_name": "",
         "model_name": "",
     })):
-        result = await completion("unknown_action", [{"role": "user", "content": "hi"}])
+        result = await completion(
+            "unknown_action", [{"role": "user", "content": "hi"}]
+        )
         assert result.success is False
         assert "unknown_action" in result.error
 
@@ -116,47 +121,29 @@ def test_should_reject_list_as_rendered_prompt():
 # ---------------------------------------------------------------------------
 
 def test_should_expose_transient_errors_tuple():
-    """_TRANSIENT_ERRORS is a tuple of exception types (not generic Exception)."""
+    """_TRANSIENT_ERRORS must not include generic Exception."""
     from aifw.service import _TRANSIENT_ERRORS
-    assert isinstance(_TRANSIENT_ERRORS, tuple)
-    assert len(_TRANSIENT_ERRORS) > 0
-    # If litellm exposes proper exception classes, generic Exception must not be included.
-    # If litellm falls back to (Exception,), this test is a no-op (still passes).
-    for exc_cls in _TRANSIENT_ERRORS:
-        assert issubclass(exc_cls, BaseException)
+    assert Exception not in _TRANSIENT_ERRORS
 
 
 # ---------------------------------------------------------------------------
 # sync_completion_stream — queue-based true streaming
 # ---------------------------------------------------------------------------
 
-def _make_async_iter(items):
-    """Return an async iterable from a list of items."""
-    class _AsyncIter:
-        def __init__(self):
-            self._items = iter(items)
-
-        def __aiter__(self):
-            return self
-
-        async def __anext__(self):
-            try:
-                return next(self._items)
-            except StopIteration:
-                raise StopAsyncIteration
-
-    return _AsyncIter()
-
-
 def test_should_stream_chunks_via_queue():
     """sync_completion_stream yields chunks as they arrive (true streaming)."""
     from aifw.service import sync_completion_stream
 
-    chunks_data = []
-    for word in ["Hello", " ", "world"]:
-        chunk = MagicMock()
-        chunk.choices[0].delta.content = word
-        chunks_data.append(chunk)
+    async def _fake_acompletion(**kwargs):
+        class FakeChunk:
+            def __init__(self, text):
+                self.choices = [MagicMock(delta=MagicMock(content=text))]
+
+        async def _iter():
+            for word in ["Hello", " ", "world"]:
+                yield FakeChunk(word)
+
+        return _iter()
 
     config = {
         "model_string": "openai/gpt-4o",
@@ -166,13 +153,12 @@ def test_should_stream_chunks_via_queue():
         "temperature": 0.7,
     }
 
-    async def _fake_acompletion(**kwargs):
-        return _make_async_iter(chunks_data)
-
     with patch("aifw.service.get_model_config", new=AsyncMock(return_value=config)), \
          patch("litellm.acompletion", side_effect=_fake_acompletion):
         chunks = list(
-            sync_completion_stream("story_writing", [{"role": "user", "content": "hi"}])
+            sync_completion_stream(
+                "story_writing", [{"role": "user", "content": "hi"}]
+            )
         )
 
     assert chunks == ["Hello", " ", "world"]
@@ -197,7 +183,9 @@ def test_should_propagate_exception_from_stream():
          patch("litellm.acompletion", side_effect=_failing_acompletion):
         with pytest.raises(RuntimeError, match="LLM exploded"):
             list(
-                sync_completion_stream("story_writing", [{"role": "user", "content": "hi"}])
+                sync_completion_stream(
+                    "story_writing", [{"role": "user", "content": "hi"}]
+                )
             )
 
 
@@ -213,7 +201,7 @@ async def test_completion_success():
     mock_response.usage.prompt_tokens = 10
     mock_response.usage.completion_tokens = 5
 
-    with patch("aifw.service.get_model_config", new=AsyncMock(return_value={
+    config = {
         "model_string": "anthropic/claude-3-5-sonnet-20241022",
         "api_key": "sk-test",
         "api_base": None,
@@ -223,7 +211,9 @@ async def test_completion_success():
         "model_id": 1,
         "provider_name": "anthropic",
         "model_name": "claude-3-5-sonnet-20241022",
-    })), patch("aifw.service._log_usage", new=AsyncMock()), \
+    }
+    with patch("aifw.service.get_model_config", new=AsyncMock(return_value=config)), \
+         patch("aifw.service._log_usage", new=AsyncMock()), \
          patch("litellm.acompletion", new=AsyncMock(return_value=mock_response)):
         result = await completion(
             "story_writing", [{"role": "user", "content": "Write a story"}]
@@ -232,3 +222,181 @@ async def test_completion_success():
         assert result.content == "Hello world"
         assert result.input_tokens == 10
         assert result.output_tokens == 5
+
+
+# ---------------------------------------------------------------------------
+# 0.5.0 — tenant_id / object_id / metadata propagation
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_should_pass_tenant_id_to_log_usage():
+    """completion() forwards tenant_id to _log_usage."""
+    import uuid
+    from aifw.service import completion
+
+    tenant = uuid.uuid4()
+    log_usage_calls = []
+
+    async def _capture_log_usage(
+        config, result, user=None, tenant_id=None, object_id="", metadata=None
+    ):
+        log_usage_calls.append({
+            "tenant_id": tenant_id,
+            "object_id": object_id,
+            "metadata": metadata,
+        })
+
+    mock_response = MagicMock()
+    mock_response.choices[0].message.content = "ok"
+    mock_response.choices[0].message.tool_calls = None
+    mock_response.choices[0].finish_reason = "stop"
+    mock_response.model = "gpt-4o"
+    mock_response.usage.prompt_tokens = 5
+    mock_response.usage.completion_tokens = 3
+
+    config = {
+        "model_string": "gpt-4o",
+        "api_key": "sk-test",
+        "api_base": None,
+        "max_tokens": 100,
+        "temperature": 0.7,
+        "action_id": 1,
+        "model_id": 1,
+        "provider_name": "openai",
+        "model_name": "gpt-4o",
+    }
+    with patch("aifw.service.get_model_config", new=AsyncMock(return_value=config)), \
+         patch("aifw.service._log_usage", side_effect=_capture_log_usage), \
+         patch("litellm.acompletion", new=AsyncMock(return_value=mock_response)):
+        await completion(
+            "story_writing",
+            [{"role": "user", "content": "hi"}],
+            tenant_id=tenant,
+            object_id="story-42",
+            metadata={"source": "test"},
+        )
+
+    assert len(log_usage_calls) == 1
+    assert log_usage_calls[0]["tenant_id"] == tenant
+    assert log_usage_calls[0]["object_id"] == "story-42"
+    assert log_usage_calls[0]["metadata"] == {"source": "test"}
+
+
+@pytest.mark.asyncio
+async def test_should_accept_string_tenant_id():
+    """completion() accepts tenant_id as string."""
+    from aifw.service import completion
+
+    log_usage_calls = []
+
+    async def _capture_log_usage(
+        config, result, user=None, tenant_id=None, object_id="", metadata=None
+    ):
+        log_usage_calls.append({"tenant_id": tenant_id})
+
+    mock_response = MagicMock()
+    mock_response.choices[0].message.content = "ok"
+    mock_response.choices[0].message.tool_calls = None
+    mock_response.choices[0].finish_reason = "stop"
+    mock_response.model = "gpt-4o"
+    mock_response.usage.prompt_tokens = 5
+    mock_response.usage.completion_tokens = 3
+
+    config = {
+        "model_string": "gpt-4o",
+        "api_key": "sk-test",
+        "api_base": None,
+        "max_tokens": 100,
+        "temperature": 0.7,
+        "action_id": 1,
+        "model_id": 1,
+        "provider_name": "openai",
+        "model_name": "gpt-4o",
+    }
+    with patch("aifw.service.get_model_config", new=AsyncMock(return_value=config)), \
+         patch("aifw.service._log_usage", side_effect=_capture_log_usage), \
+         patch("litellm.acompletion", new=AsyncMock(return_value=mock_response)):
+        await completion(
+            "story_writing",
+            [{"role": "user", "content": "hi"}],
+            tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        )
+
+    assert len(log_usage_calls) == 1
+    assert log_usage_calls[0]["tenant_id"] == "550e8400-e29b-41d4-a716-446655440000"
+
+
+# ---------------------------------------------------------------------------
+# 0.5.0 — sync_completion_with_fallback
+# ---------------------------------------------------------------------------
+
+def test_should_return_result_from_sync_completion_with_fallback():
+    """sync_completion_with_fallback() returns LLMResult on success."""
+    from aifw.service import sync_completion_with_fallback
+
+    mock_result = LLMResult(success=True, content="Fallback works", model="gpt-4o")
+
+    with patch(
+        "aifw.service.completion_with_fallback",
+        new=AsyncMock(return_value=mock_result),
+    ):
+        result = sync_completion_with_fallback(
+            "story_writing",
+            [{"role": "user", "content": "hi"}],
+        )
+
+    assert result.success is True
+    assert result.content == "Fallback works"
+
+
+def test_should_propagate_tenant_id_through_sync_fallback():
+    """sync_completion_with_fallback() passes tenant_id to completion_with_fallback."""
+    import uuid
+    from aifw.service import sync_completion_with_fallback
+
+    captured = {}
+
+    async def _fake_fallback(action_code, messages, **kwargs):
+        captured.update(kwargs)
+        return LLMResult(success=True, content="ok")
+
+    tenant = uuid.uuid4()
+    with patch("aifw.service.completion_with_fallback", side_effect=_fake_fallback):
+        sync_completion_with_fallback(
+            "story_writing",
+            [{"role": "user", "content": "hi"}],
+            tenant_id=tenant,
+            object_id="obj-1",
+        )
+
+    assert captured.get("tenant_id") == tenant
+    assert captured.get("object_id") == "obj-1"
+
+
+# ---------------------------------------------------------------------------
+# 0.5.0 — check_action_code
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+def test_should_return_true_for_existing_action_code():
+    """check_action_code() returns True when AIActionType exists."""
+    from aifw.models import AIActionType
+    from aifw.service import check_action_code
+
+    AIActionType.objects.create(
+        code="test_action",
+        name="Test Action",
+        is_active=True,
+        max_tokens=500,
+        temperature=0.7,
+    )
+
+    assert check_action_code("test_action") is True
+
+
+@pytest.mark.django_db
+def test_should_return_false_for_missing_action_code():
+    """check_action_code() returns False when action code not in DB."""
+    from aifw.service import check_action_code
+
+    assert check_action_code("nonexistent_action_xyz") is False
