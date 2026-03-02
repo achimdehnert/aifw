@@ -16,6 +16,12 @@ New in 0.4.0:
 - AIUsageLog extended with tenant_id, object_id, metadata
 - sync_completion_stream uses queue.Queue for true streaming
 - RenderedPromptProtocol (typing.Protocol) replaces duck-typing
+
+New in 0.5.0:
+- tenant_id, object_id, metadata forwarded through completion() / sync_completion()
+  to AIUsageLog — enables per-tenant cost tracking without boilerplate in consumers
+- sync_completion_with_fallback() — sync wrapper for completion_with_fallback()
+- check_action_code() — lightweight validation helper for pre-deploy checks
 """
 
 from __future__ import annotations
@@ -28,6 +34,7 @@ import os
 import queue
 import time
 import threading
+import uuid
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
@@ -164,9 +171,9 @@ def _rendered_prompt_to_overrides(rendered) -> dict[str, Any]:
 
     Maps promptfw ``response_format`` values to the LiteLLM
     ``response_format`` parameter:
-    - ``"json_object"``  → ``{"type": "json_object"}``
-    - ``"json_schema"``  → ``{"type": "json_schema", "json_schema": output_schema}``
-    - ``"text"`` / None → no override (default LiteLLM behaviour)
+    - ``"json_object"``  -> ``{"type": "json_object"}``
+    - ``"json_schema"``  -> ``{"type": "json_schema", "json_schema": output_schema}``
+    - ``"text"`` / None -> no override (default LiteLLM behaviour)
     """
     overrides: dict[str, Any] = {}
     rf = getattr(rendered, "response_format", None)
@@ -175,7 +182,9 @@ def _rendered_prompt_to_overrides(rendered) -> dict[str, Any]:
     elif rf == "json_schema":
         schema = getattr(rendered, "output_schema", None)
         if schema:
-            overrides["response_format"] = {"type": "json_schema", "json_schema": schema}
+            overrides["response_format"] = {
+                "type": "json_schema", "json_schema": schema
+            }
         else:
             overrides["response_format"] = {"type": "json_object"}
     return overrides
@@ -208,7 +217,9 @@ async def get_model_config(action_code: str) -> dict[str, Any]:
             model = action.get_model()
             if model and model.provider:
                 cfg = {
-                    "model_string": _build_model_string(model.provider.name, model.name),
+                    "model_string": _build_model_string(
+                        model.provider.name, model.name
+                    ),
                     "api_key": _get_api_key(model.provider),
                     "api_base": model.provider.base_url or None,
                     "max_tokens": action.max_tokens,
@@ -264,15 +275,32 @@ async def get_model_config(action_code: str) -> dict[str, Any]:
 # Usage logging
 # ---------------------------------------------------------------------------
 
-async def _log_usage(config: dict, result: LLMResult, user=None) -> None:
+async def _log_usage(
+    config: dict,
+    result: LLMResult,
+    user=None,
+    tenant_id: uuid.UUID | str | None = None,
+    object_id: str = "",
+    metadata: dict[str, Any] | None = None,
+) -> None:
     try:
         from aifw.models import AIUsageLog
+
+        _tenant_id = tenant_id
+        if isinstance(_tenant_id, str) and _tenant_id:
+            try:
+                _tenant_id = uuid.UUID(_tenant_id)
+            except ValueError:
+                _tenant_id = None
 
         await sync_to_async(
             lambda: AIUsageLog.objects.create(
                 action_type_id=config.get("action_id"),
                 model_used_id=config.get("model_id"),
                 user=user,
+                tenant_id=_tenant_id,
+                object_id=object_id or "",
+                metadata=metadata or {},
                 input_tokens=result.input_tokens,
                 output_tokens=result.output_tokens,
                 latency_ms=result.latency_ms,
@@ -296,7 +324,9 @@ async def _call_litellm(kwargs: dict[str, Any]):
 _call_litellm_with_retry = _make_retry(_call_litellm)
 
 
-def _build_kwargs(config: dict, messages: list[dict], overrides: dict) -> dict[str, Any]:
+def _build_kwargs(
+    config: dict, messages: list[dict], overrides: dict
+) -> dict[str, Any]:
     kwargs: dict[str, Any] = {
         "model": overrides.pop("model", config["model_string"]),
         "messages": messages,
@@ -320,6 +350,9 @@ async def completion(
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | None = "auto",
     user=None,
+    tenant_id: uuid.UUID | str | None = None,
+    object_id: str = "",
+    metadata: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> LLMResult:
     """
@@ -329,6 +362,11 @@ async def completion(
     (or any object satisfying ``RenderedPromptProtocol``).
     If a ``RenderedPrompt`` is passed, ``response_format`` and ``output_schema``
     are automatically forwarded to LiteLLM (json_object / json_schema).
+
+    Args:
+        tenant_id: UUID of the tenant (multi-tenant apps). Stored in AIUsageLog.
+        object_id: Opaque domain object reference, e.g. ``"chapter:42"``.
+        metadata: Arbitrary context dict, e.g. ``{"pipeline": "enrich"}``.
     """
     if isinstance(messages, RenderedPromptProtocol):
         prompt_overrides = _rendered_prompt_to_overrides(messages)
@@ -346,7 +384,7 @@ async def completion(
             error=(
                 f"No LLM model configured for action '{action_code}'. "
                 "Run 'python manage.py init_aifw_config' or assign a "
-                "default_model in Admin → AI Services → AI Action Types."
+                "default_model in Admin -> AI Services -> AI Action Types."
             ),
         )
 
@@ -381,7 +419,13 @@ async def completion(
             model=kwargs.get("model", ""),
         )
 
-    await _log_usage(config, result, user=user)
+    await _log_usage(
+        config, result,
+        user=user,
+        tenant_id=tenant_id,
+        object_id=object_id,
+        metadata=metadata,
+    )
     return result
 
 
@@ -486,15 +530,27 @@ def sync_completion(
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | None = "auto",
     user=None,
+    tenant_id: uuid.UUID | str | None = None,
+    object_id: str = "",
+    metadata: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> LLMResult:
-    """Synchronous wrapper — safe in Django views, Celery tasks, management commands."""
+    """Synchronous wrapper — safe in Django views, Celery tasks, management commands.
+
+    Args:
+        tenant_id: UUID of the tenant (multi-tenant apps). Stored in AIUsageLog.
+        object_id: Opaque domain object reference, e.g. ``"chapter:42"``.
+        metadata: Arbitrary context dict, e.g. ``{"pipeline": "enrich"}``.
+    """
     coro = completion(
         action_code=action_code,
         messages=messages,
         tools=tools,
         tool_choice=tool_choice,
         user=user,
+        tenant_id=tenant_id,
+        object_id=object_id,
+        metadata=metadata,
         **overrides,
     )
 
@@ -512,6 +568,9 @@ async def completion_with_fallback(
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | None = "auto",
     user=None,
+    tenant_id: uuid.UUID | str | None = None,
+    object_id: str = "",
+    metadata: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> LLMResult:
     """Completion with automatic fallback to the configured fallback model."""
@@ -521,6 +580,9 @@ async def completion_with_fallback(
         tools=tools,
         tool_choice=tool_choice,
         user=user,
+        tenant_id=tenant_id,
+        object_id=object_id,
+        metadata=metadata,
         **overrides,
     )
     if result.success:
@@ -548,6 +610,9 @@ async def completion_with_fallback(
                 tools=tools,
                 tool_choice=tool_choice,
                 user=user,
+                tenant_id=tenant_id,
+                object_id=object_id,
+                metadata=metadata,
                 model=_build_model_string(fb.provider.name, fb.name),
                 api_key=_get_api_key(fb.provider),
                 **overrides,
@@ -556,3 +621,71 @@ async def completion_with_fallback(
         logger.warning("Fallback lookup failed: %s", e)
 
     return result
+
+
+def sync_completion_with_fallback(
+    action_code: str,
+    messages: list[dict[str, Any]] | Any,
+    tools: list[dict[str, Any]] | None = None,
+    tool_choice: str | None = "auto",
+    user=None,
+    tenant_id: uuid.UUID | str | None = None,
+    object_id: str = "",
+    metadata: dict[str, Any] | None = None,
+    **overrides: Any,
+) -> LLMResult:
+    """Synchronous wrapper for completion_with_fallback().
+
+    Tries the default model; automatically retries with the configured
+    fallback model on failure. Safe in Django views, Celery tasks, management commands.
+
+    Args:
+        tenant_id: UUID of the tenant (multi-tenant apps). Stored in AIUsageLog.
+        object_id: Opaque domain object reference, e.g. ``"project:7"``.
+        metadata: Arbitrary context dict, e.g. ``{"pipeline": "enrich"}``.
+    """
+    coro = completion_with_fallback(
+        action_code=action_code,
+        messages=messages,
+        tools=tools,
+        tool_choice=tool_choice,
+        user=user,
+        tenant_id=tenant_id,
+        object_id=object_id,
+        metadata=metadata,
+        **overrides,
+    )
+
+    try:
+        asyncio.get_running_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result(timeout=180)
+    except RuntimeError:
+        return asyncio.run(coro)
+
+
+def check_action_code(action_code: str) -> bool:
+    """Return True if action_code exists and is active in the DB.
+
+    Lightweight pre-deploy / management-command check. Does NOT raise —
+    logs a warning and returns False if the code is missing.
+
+    Usage::
+
+        from aifw import check_action_code
+        assert check_action_code("story_writing"), "Seed aifw config first"
+    """
+    try:
+        from aifw.models import AIActionType
+        exists = AIActionType.objects.filter(
+            code=action_code, is_active=True
+        ).exists()
+        if not exists:
+            logger.warning(
+                "aifw: action_code '%s' not found — run 'manage.py init_aifw_config'",
+                action_code,
+            )
+        return exists
+    except Exception as e:
+        logger.warning("check_action_code('%s') failed: %s", action_code, e)
+        return False
