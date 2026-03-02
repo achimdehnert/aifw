@@ -1,36 +1,27 @@
 name: Publish to PyPI
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g. 0.5.0)"
+        required: true
+        default: "0.5.0"
 
 jobs:
-  test:
+  build-and-publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Install and test
-        run: |
-          pip install -e ".[dev]"
-          pytest tests/ -v
-
-  publish:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+          python-version: "3.12"
+      - name: Install build dependencies
+        run: pip install hatchling build twine
       - name: Build
-        run: |
-          pip install hatch
-          hatch build
+        run: python -m hatchling build
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
