@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-03-02
+
+### Added
+- `tenant_id`, `object_id`, `metadata` parameters on `completion()`,
+  `sync_completion()`, `completion_with_fallback()` — forwarded directly to
+  `AIUsageLog`; consumers (bfagent, travel-beat, weltenhub) no longer need
+  wrapper boilerplate to track per-tenant costs
+- `sync_completion_with_fallback()` — synchronous wrapper for
+  `completion_with_fallback()`, safe in Django views / Celery / management
+  commands
+- `check_action_code(action_code)` — lightweight bool helper that verifies an
+  `AIActionType` code exists in the DB; useful in pre-deploy checks and
+  management commands
+
+### Changed
+- `_log_usage()` signature extended with `tenant_id`, `object_id`, `metadata`
+- `import uuid` added to `service.py`; `tenant_id` accepts both `uuid.UUID`
+  and `str` (auto-coerced)
+- All public functions exported from `aifw.__init__`
+
 ## [0.4.0] — 2026-03-01
 
 ### Added
