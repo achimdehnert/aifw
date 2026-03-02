@@ -1,5 +1,5 @@
 [project]
-name = "aifw"
+name = "iil-aifw"
 version = "0.5.0"
 description = "Django AI Services Framework — DB-driven LLM provider, model & usage management"
 readme = "README.md"
