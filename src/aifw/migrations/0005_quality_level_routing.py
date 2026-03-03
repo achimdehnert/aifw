@@ -21,7 +21,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("aifw", "0005_alter_aiactiontype_options_alter_aiusagelog_options_and_more"),
+        ("aifw", "0005_merge_schemasource_alter"),
     ]
 
     operations = [

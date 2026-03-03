@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("aifw", "0004_schemasource"),  # noqa: linear chain 0004→0005→0006
+        ("aifw", "0003_aiusagelog_tenant_object_metadata"),
     ]
 
     operations = [
