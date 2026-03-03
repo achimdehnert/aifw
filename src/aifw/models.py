@@ -10,17 +10,26 @@ New in 0.6.0 (ADR-095):
 - TierQualityMapping: DB-driven subscription tier → quality_level mapping
 - AIUsageLog.quality_level: dedicated column for cost-per-tier analytics
 
+New in 0.6.1:
+- AIActionType._budget_exceeded(): TTL cache (default 60s, env AIFW_BUDGET_TTL)
+  reduces DB aggregation from O(n_calls) to O(1/TTL) under load.
+
 Uniqueness on AIActionType is enforced by 4 partial unique indexes (migration 0005),
 not unique_together — required due to PostgreSQL NULL != NULL semantics.
 """
 from __future__ import annotations
 
 import logging
+import os
+import time
 
 from django.conf import settings
 from django.db import models
 
 logger = logging.getLogger(__name__)
+
+_BUDGET_TTL: int = int(os.environ.get("AIFW_BUDGET_TTL", "60"))
+_budget_cache: dict[str, tuple[bool, float]] = {}
 
 
 class LLMProvider(models.Model):
@@ -89,7 +98,6 @@ class AIActionType(models.Model):
     See ADR-095 §5.2 for NULL semantics explanation.
     """
 
-    # code is db_index only (not unique) — multiple rows per code allowed
     code = models.CharField(max_length=100, db_index=True)
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
@@ -197,9 +205,20 @@ class AIActionType(models.Model):
         return LLMModel.objects.filter(is_active=True, is_default=True).first()
 
     def _budget_exceeded(self) -> bool:
-        """Return True if today's spend has reached or exceeded budget_per_day."""
+        """Return True if today's spend has reached or exceeded budget_per_day.
+
+        Result is cached per action code for _BUDGET_TTL seconds (default 60s,
+        env: AIFW_BUDGET_TTL) to avoid per-call DB aggregation under load.
+        Cache is invalidated by invalidate_config_cache() on model save/delete.
+        """
         if not self.budget_per_day:
             return False
+
+        now = time.monotonic()
+        cached = _budget_cache.get(self.code)
+        if cached is not None and (now - cached[1]) < _BUDGET_TTL:
+            return cached[0]
+
         from datetime import date
 
         today_spend = (
@@ -210,7 +229,17 @@ class AIActionType(models.Model):
             ).aggregate(total=models.Sum("estimated_cost"))["total"]
             or 0
         )
-        return float(today_spend) >= float(self.budget_per_day)
+        result = float(today_spend) >= float(self.budget_per_day)
+        _budget_cache[self.code] = (result, now)
+        return result
+
+
+def _invalidate_budget_cache(code: str | None = None) -> None:
+    """Invalidate budget cache for a specific action code or all codes."""
+    if code is not None:
+        _budget_cache.pop(code, None)
+    else:
+        _budget_cache.clear()
 
 
 class TierQualityMapping(models.Model):
