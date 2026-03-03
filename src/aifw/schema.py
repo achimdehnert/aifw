@@ -55,3 +55,59 @@ class LLMResult:
     @property
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
+
+    def as_json(self) -> dict[str, Any] | None:
+        """Extract JSON object from content. Returns None if not parseable.
+
+        Tries promptfw.parsing.extract_json first, falls back to stdlib json.
+        Handles fenced code blocks (```json ... ```) automatically.
+
+        Example::
+
+            result = sync_completion("story_planning", messages)
+            data = result.as_json()  # {"premise": "...", "themes": [...]}
+        """
+        try:
+            from promptfw.parsing import extract_json
+            return extract_json(self.content)
+        except ImportError:
+            pass
+        import json
+        import re
+        text = self.content.strip()
+        match = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", text)
+        if match:
+            text = match.group(1).strip()
+        try:
+            return json.loads(text)
+        except (json.JSONDecodeError, ValueError):
+            return None
+
+    def field(self, name: str, default: Any = None) -> Any:
+        """Extract a named Markdown field from content.
+
+        Looks for patterns like ``**Field:** value`` or ``Field: value``
+        (case-insensitive). Returns default if not found.
+
+        Tries promptfw.parsing.extract_field first, falls back to regex.
+
+        Example::
+
+            result = sync_completion("story_planning", messages)
+            premise = result.field("Premise")
+            premise = result.field("Premise", default="")
+        """
+        try:
+            from promptfw.parsing import extract_field
+            return extract_field(self.content, name, default=default)
+        except ImportError:
+            pass
+        import re
+        pattern = re.compile(
+            r"(?:^|\n)\s*\*{0,2}" + re.escape(name) + r"\*{0,2}\s*:[ \t]*(.+)",
+            re.IGNORECASE,
+        )
+        match = pattern.search(self.content)
+        if match:
+            return match.group(1).strip()
+        return default
