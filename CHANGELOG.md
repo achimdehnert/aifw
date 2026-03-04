@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-03-04
+
+### Added
+- `aifw.nl2sql` subpackage (local source — previously only in distributed whl)
+- `NL2SQLExample` — verified Q→SQL pairs for few-shot prompting
+  - DB table `aifw_nl2sql_examples`
+  - `source`, `question`, `sql`, `domain`, `difficulty`, `is_active`, `promoted_from`
+  - Injected automatically into LLM system prompt (up to 15 examples, ordered by difficulty)
+- `NL2SQLFeedback` — auto-captured SQL execution errors + manual correction pipeline
+  - DB table `aifw_nl2sql_feedback`
+  - Auto-created by `NL2SQLEngine` on every `NL2SQLExecutionError`
+  - Error type classification: `schema_error`, `table_error`, `join_error`, `syntax_error`, `timeout`
+  - `corrected_sql` + `promoted` fields for Feedback → Example promotion
+- `NL2SQLEngine` enhancements:
+  - Few-shot block injected into system prompt from `NL2SQLExample`
+  - Auto-captures `NL2SQLFeedback` on SQL execution errors
+  - **Self-healing retry**: on execution error, second LLM call with error message as context (max 1 retry)
+- Management commands:
+  - `seed_nl2sql_examples` — seeds 11 verified odoo_mfg examples (casting, machines, scm, quality)
+  - `promote_feedback` — promotes corrected feedback to NL2SQLExample (`--dry-run` supported)
+  - `validate_schema` — validates every schema-XML table/column against real DB (CI/CD safe, exit 1 on error)
+- Migration `0006_nl2sql_example_feedback`
+
 ## [0.5.0] — 2026-03-02
 
 ### Added
