@@ -1,0 +1,21 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: aifw
+  description: iil-aifw — AI Framework for LiteLLM backend, DB-driven model routing, quality-level dispatch
+  tags: [python, llm, litellm, django, framework, ai-routing]
+  annotations:
+    github.com/project-slug: achimdehnert/aifw
+    pypi/package-name: "iil-aifw"
+    pypi/publish-workflow: "publish.yml"
+spec:
+  type: library
+  lifecycle: active
+  owner: achimdehnert
+  system: ai-platform
+  domain: platform
+  providesApis:
+    - aifw-api
+  dependsOn:
+    - resource:postgresql
+    - resource:redis
