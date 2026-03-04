@@ -2,6 +2,7 @@
 aifw.nl2sql.engine — NL2SQLEngine: NL → SQL → execute → format.
 
 Pipeline:
+  0. (Optional) Clarification-Check: ambige Fragen werden vor SQL-Generierung abgefangen
   1. Load SchemaSource from DB
   2. Load NL2SQLExample few-shot pairs for this source
   3. Build LLM prompt (schema XML + few-shot examples + conversation history + question)
@@ -202,16 +203,34 @@ class NL2SQLEngine:
     - Auto-captures SQL execution errors to NL2SQLFeedback
     - Retry with error context (max 1 retry per question)
 
+    New in 0.8.0:
+    - Optional Clarification-Agent: ambige Fragen werden vor SQL-Generierung abgefangen
+      Konfigurierbar via clarification_domains=[...] — ohne Domänen deaktiviert
+
     Usage::
-        engine = NL2SQLEngine(source_code="odoo_mfg")
-        result = engine.ask("Welche Maschinen sind in Störung?")
-        if result.success:
-            print(result.formatted.rows)
+        engine = NL2SQLEngine(
+            source_code="odoo_mfg",
+            clarification_domains=["Maschinen", "Gießaufträge", "Qualitätsprüfungen"],
+        )
+        result = engine.ask("Wie läuft es?")
+        if result.needs_clarification:
+            print(result.clarification_question)
+            print(result.clarification_options)
     """
 
-    def __init__(self, source_code: str = "odoo_mfg") -> None:
+    def __init__(
+        self,
+        source_code: str = "odoo_mfg",
+        clarification_domains: list[str] | None = None,
+    ) -> None:
         self.source_code = source_code
         self._source: Any = None
+        # Einmalig instanziieren — nicht pro _run()-Aufruf
+        if clarification_domains:
+            from aifw.nl2sql.clarification import ClarificationDetector
+            self._clarifier: Any = ClarificationDetector(domains=clarification_domains)
+        else:
+            self._clarifier = None
 
     def _load_source(self):
         if self._source is not None:
@@ -276,6 +295,19 @@ class NL2SQLEngine:
         conversation_history: list[dict],
         retry_count: int = 0,
     ) -> NL2SQLResult:
+        # Stufe 0: Clarification-Check (nur beim ersten Versuch, nicht bei Retry)
+        if self._clarifier is not None and retry_count == 0:
+            clarity = self._clarifier.analyze(question, conversation_history=conversation_history)
+            if clarity.is_ambiguous:
+                logger.info("NL2SQL Clarification benötigt für: %s (confidence=%.2f)", question, clarity.confidence)
+                return NL2SQLResult(
+                    success=False,
+                    needs_clarification=True,
+                    clarification_question=clarity.question,
+                    clarification_options=[vars(o) for o in clarity.options],
+                    error="",
+                )
+
         source = self._load_source()
         blocked = source.get_blocked_tables_set() | ALWAYS_BLOCKED
         examples = self._load_examples(source)
