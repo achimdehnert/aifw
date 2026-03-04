@@ -1,14 +1,14 @@
 [project]
 name = "iil-aifw"
 version = "0.7.0"
-description = "Django AI Services Framework — DB-driven LLM provider, model & usage management"
+description = "Django AI Services Framework — DB-driven LLM routing, quality tiers, NL2SQL"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
     {name = "Achim Dehnert", email = "achim@dehnert.com"}
 ]
-keywords = ["django", "llm", "ai", "openai", "anthropic", "litellm", "ai-services"]
+keywords = ["django", "llm", "ai", "openai", "anthropic", "litellm", "ai-services", "nl2sql", "text-to-sql"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Framework :: Django :: 5.0",
@@ -28,11 +28,20 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+nl2sql = [
+    # aifw.nl2sql uses only core deps (Django + litellm) — no extra packages needed.
+    # Add aifw.nl2sql to INSTALLED_APPS to activate NL2SQL models + engine.
+]
+rag = [
+    # Future: Schema-RAG via pgvector (ADR-009 Phase 1, Sprint 16+)
+    "pgvector>=0.3",
+]
 dev = [
     "pytest>=8.0",
     "pytest-django>=4.8",
     "pytest-asyncio>=0.23",
     "hatch",
+    "ruff",
 ]
 
 [build-system]
