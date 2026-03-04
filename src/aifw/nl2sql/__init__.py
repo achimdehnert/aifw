@@ -9,6 +9,8 @@ Public API:
     NL2SQLFeedback — error log + corrections for continuous learning
 """
 
+default_app_config = "aifw.nl2sql.apps.NL2SQLConfig"
+
 from aifw.nl2sql.engine import NL2SQLEngine
 from aifw.nl2sql.models import NL2SQLExample, NL2SQLFeedback, SchemaSource
 from aifw.nl2sql.results import (

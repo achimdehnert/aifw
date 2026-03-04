@@ -25,7 +25,7 @@ class SchemaSource(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        app_label = "aifw"
+        app_label = "aifw_nl2sql"
         db_table = "aifw_nl2sql_schema_sources"
         verbose_name = "NL2SQL Schema Source"
         verbose_name_plural = "NL2SQL Schema Sources"
@@ -95,7 +95,7 @@ class NL2SQLExample(models.Model):
     verified_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        app_label = "aifw"
+        app_label = "aifw_nl2sql"
         db_table = "aifw_nl2sql_examples"
         verbose_name = "NL2SQL Beispiel"
         verbose_name_plural = "NL2SQL Beispiele"
@@ -151,7 +151,7 @@ class NL2SQLFeedback(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        app_label = "aifw"
+        app_label = "aifw_nl2sql"
         db_table = "aifw_nl2sql_feedback"
         verbose_name = "NL2SQL Feedback"
         verbose_name_plural = "NL2SQL Feedback"

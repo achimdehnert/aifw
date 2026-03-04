@@ -44,3 +44,6 @@ class NL2SQLResult:
     warnings: list[str] = field(default_factory=list)
     generation: GenerationInfo | None = None
     formatted: FormattedResult = field(default_factory=FormattedResult)
+    needs_clarification: bool = False
+    clarification_question: str = ""
+    clarification_options: list[dict] = field(default_factory=list)

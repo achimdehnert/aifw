@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-03-04
+
+### Added
+- `aifw/nl2sql/apps.py` — `NL2SQLConfig(AppConfig)` with `label="aifw_nl2sql"`
+- `aifw/nl2sql/migrations/` — own migrations directory; `0001_initial_from_core`
+  transfers NL2SQL models from `aifw` → `aifw_nl2sql` (SeparateDatabaseAndState, no DDL)
+- `NL2SQLResult.needs_clarification`, `clarification_question`, `clarification_options`
+  — additive fields for upcoming Clarification-Agent (ADR-010); all default to falsy
+
+### Changed
+- `aifw.nl2sql` is now a proper Django app (`app_label = "aifw_nl2sql"`)
+- Must be added explicitly to `INSTALLED_APPS` to activate NL2SQL models + migrations
+- `pyproject.toml` optional-dependency `nl2sql` comment updated (intent marker, no extra download)
+
+### Migration notes
+- Run `python manage.py migrate aifw 0007_nl2sql_app_label` then `migrate aifw_nl2sql`
+- No DDL — all three `db_table` values are explicitly set and unchanged
+- `travel-beat`, `writing-hub`, `weltenhub`: no action required (Core API unchanged)
+
 ## [0.7.0] — 2026-03-04
 
 ### Added

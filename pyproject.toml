@@ -1,6 +1,6 @@
 [project]
 name = "iil-aifw"
-version = "0.7.0"
+version = "0.8.0"
 description = "Django AI Services Framework — DB-driven LLM routing, quality tiers, NL2SQL"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,8 +29,9 @@ dependencies = [
 
 [project.optional-dependencies]
 nl2sql = [
-    # aifw.nl2sql uses only core deps (Django + litellm) — no extra packages needed.
-    # Add aifw.nl2sql to INSTALLED_APPS to activate NL2SQL models + engine.
+    # No extra Python packages — aifw.nl2sql uses only core deps (Django + litellm).
+    # Activation: add "aifw.nl2sql" to INSTALLED_APPS (activates NL2SQLConfig + migrations).
+    # pip install 'iil-aifw[nl2sql]' signals NL2SQL intent, no additional download weight.
 ]
 rag = [
     # Future: Schema-RAG via pgvector (ADR-009 Phase 1, Sprint 16+)
