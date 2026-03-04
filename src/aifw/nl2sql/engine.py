@@ -54,6 +54,13 @@ Regeln (absolut):
 - Gib NUR das SQL zurück — kein Markdown, keine Erklärung, kein ```sql Block
 - Falls die Frage nicht mit SQL beantwortet werden kann: antworte mit EXACTLY: CANNOT_ANSWER
 
+Spaltenaliase (PFLICHT):
+- Jede SELECT-Spalte MUSS einen deutschen, sprechenden Alias haben: spalte AS "Deutsch Bezeichnung"
+- Technische DB-Namen (state, total_scrap_pct, machine_id, ...) NIEMALS direkt ausgeben
+- Aliase müssen zur Nutzerfrage passen: "Welche Maschinen..." → AS "Maschine", AS "Status"
+- Beispiel: state AS "Status", total_scrap_pct AS "Ausschuss %", name AS "Auftrag"
+- Aggregat-Aliase: COUNT(*) AS "Anzahl", SUM(...) AS "Gesamt", AVG(...) AS "Durchschnitt"
+
 Schema:
 {schema_xml}
 """

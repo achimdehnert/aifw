@@ -19,7 +19,11 @@ EXAMPLES = {
         {
             "question": "Welche Maschinen sind gerade in Störung?",
             "sql": (
-                "SELECT name, code, hall, state\n"
+                "SELECT\n"
+                "  name        AS \"Maschine\",\n"
+                "  code        AS \"Code\",\n"
+                "  hall        AS \"Halle\",\n"
+                "  state       AS \"Status\"\n"
                 "FROM casting_machine\n"
                 "WHERE state = 'breakdown' AND active = true\n"
                 "ORDER BY name"
@@ -30,11 +34,13 @@ EXAMPLES = {
         {
             "question": "Wie viele Maschinen sind in welchem Status?",
             "sql": (
-                "SELECT state, COUNT(*) AS anzahl\n"
+                "SELECT\n"
+                "  state       AS \"Status\",\n"
+                "  COUNT(*)    AS \"Anzahl Maschinen\"\n"
                 "FROM casting_machine\n"
                 "WHERE active = true\n"
                 "GROUP BY state\n"
-                "ORDER BY anzahl DESC"
+                "ORDER BY \"Anzahl Maschinen\" DESC"
             ),
             "domain": "machines",
             "difficulty": 1,
@@ -42,14 +48,16 @@ EXAMPLES = {
         {
             "question": "Top 5 Maschinen nach aktiven Aufträgen",
             "sql": (
-                "SELECT cm.name AS maschine, COUNT(DISTINCT col.order_id) AS aktive_auftraege\n"
+                "SELECT\n"
+                "  cm.name                         AS \"Maschine\",\n"
+                "  COUNT(DISTINCT col.order_id)    AS \"Aktive Aufträge\"\n"
                 "FROM casting_order_line col\n"
                 "JOIN casting_machine cm ON cm.id = col.machine_id\n"
                 "JOIN casting_order co ON co.id = col.order_id\n"
                 "WHERE co.state IN ('confirmed', 'in_production')\n"
                 "  AND cm.active = true\n"
                 "GROUP BY cm.name\n"
-                "ORDER BY aktive_auftraege DESC\n"
+                "ORDER BY \"Aktive Aufträge\" DESC\n"
                 "LIMIT 5"
             ),
             "domain": "machines",
@@ -58,12 +66,15 @@ EXAMPLES = {
         {
             "question": "Welche Maschine hat die meiste Wartung?",
             "sql": (
-                "SELECT cm.name AS maschine, COUNT(*) AS wartungen\n"
+                "SELECT\n"
+                "  cm.name     AS \"Maschine\",\n"
+                "  cm.state    AS \"Status\",\n"
+                "  COUNT(*)    AS \"Wartungsvorgänge\"\n"
                 "FROM casting_order_line col\n"
                 "JOIN casting_machine cm ON cm.id = col.machine_id\n"
                 "WHERE cm.state = 'maintenance'\n"
-                "GROUP BY cm.name\n"
-                "ORDER BY wartungen DESC\n"
+                "GROUP BY cm.name, cm.state\n"
+                "ORDER BY \"Wartungsvorgänge\" DESC\n"
                 "LIMIT 1"
             ),
             "domain": "machines",
@@ -73,10 +84,12 @@ EXAMPLES = {
         {
             "question": "Wie viele Aufträge gibt es je Status?",
             "sql": (
-                "SELECT state, COUNT(*) AS anzahl\n"
+                "SELECT\n"
+                "  state       AS \"Status\",\n"
+                "  COUNT(*)    AS \"Anzahl Aufträge\"\n"
                 "FROM casting_order\n"
                 "GROUP BY state\n"
-                "ORDER BY anzahl DESC"
+                "ORDER BY \"Anzahl Aufträge\" DESC"
             ),
             "domain": "casting",
             "difficulty": 1,
@@ -84,7 +97,12 @@ EXAMPLES = {
         {
             "question": "Welche Aufträge sind aktuell in Produktion?",
             "sql": (
-                "SELECT name, state, date_planned, total_pieces, total_scrap_pct\n"
+                "SELECT\n"
+                "  name                AS \"Auftrag\",\n"
+                "  state               AS \"Status\",\n"
+                "  date_planned        AS \"Geplant bis\",\n"
+                "  total_pieces        AS \"Stückzahl\",\n"
+                "  total_scrap_pct     AS \"Ausschuss %\"\n"
                 "FROM casting_order\n"
                 "WHERE state = 'in_production'\n"
                 "ORDER BY date_planned\n"
@@ -96,7 +114,12 @@ EXAMPLES = {
         {
             "question": "Zeige Aufträge mit Ausschuss über 5%",
             "sql": (
-                "SELECT name, state, total_scrap_pct, total_pieces, date_planned\n"
+                "SELECT\n"
+                "  name                AS \"Auftrag\",\n"
+                "  state               AS \"Status\",\n"
+                "  total_scrap_pct     AS \"Ausschuss %\",\n"
+                "  total_pieces        AS \"Stückzahl\",\n"
+                "  date_planned        AS \"Geplant bis\"\n"
                 "FROM casting_order\n"
                 "WHERE total_scrap_pct > 5\n"
                 "ORDER BY total_scrap_pct DESC\n"
@@ -108,7 +131,11 @@ EXAMPLES = {
         {
             "question": "Welche Aufträge sind diese Woche fällig?",
             "sql": (
-                "SELECT name, state, date_planned, total_pieces\n"
+                "SELECT\n"
+                "  name                AS \"Auftrag\",\n"
+                "  state               AS \"Status\",\n"
+                "  date_planned        AS \"Fällig am\",\n"
+                "  total_pieces        AS \"Stückzahl\"\n"
                 "FROM casting_order\n"
                 "WHERE date_planned >= date_trunc('week', CURRENT_DATE)\n"
                 "  AND date_planned < date_trunc('week', CURRENT_DATE) + INTERVAL '7 days'\n"
@@ -123,10 +150,13 @@ EXAMPLES = {
             "question": "Was ist die QS-Bestehensrate?",
             "sql": (
                 "SELECT\n"
-                "  COUNT(*) FILTER (WHERE result = 'pass') AS bestanden,\n"
-                "  COUNT(*) FILTER (WHERE result = 'fail') AS nicht_bestanden,\n"
-                "  COUNT(*) AS gesamt,\n"
-                "  ROUND(100.0 * COUNT(*) FILTER (WHERE result = 'pass') / NULLIF(COUNT(*), 0), 1) AS bestehensrate_pct\n"
+                "  COUNT(*) FILTER (WHERE result = 'pass')  AS \"Bestanden\",\n"
+                "  COUNT(*) FILTER (WHERE result = 'fail')  AS \"Nicht bestanden\",\n"
+                "  COUNT(*)                                  AS \"Gesamt\",\n"
+                "  ROUND(\n"
+                "    100.0 * COUNT(*) FILTER (WHERE result = 'pass')\n"
+                "    / NULLIF(COUNT(*), 0), 1\n"
+                "  )                                         AS \"Bestehensrate %\"\n"
                 "FROM casting_quality_check"
             ),
             "domain": "casting",
@@ -136,7 +166,11 @@ EXAMPLES = {
         {
             "question": "Welche Einkaufsbestellungen sind überfällig?",
             "sql": (
-                "SELECT name, state, date_expected, total_amount\n"
+                "SELECT\n"
+                "  name            AS \"Bestellung\",\n"
+                "  state           AS \"Status\",\n"
+                "  date_expected   AS \"Erwartet am\",\n"
+                "  total_amount    AS \"Betrag EUR\"\n"
                 "FROM scm_purchase_order\n"
                 "WHERE date_expected < CURRENT_DATE\n"
                 "  AND state NOT IN ('received', 'cancelled', 'done')\n"
@@ -149,10 +183,12 @@ EXAMPLES = {
         {
             "question": "Wie viele SCM-Aufträge laufen aktuell?",
             "sql": (
-                "SELECT state, COUNT(*) AS anzahl\n"
+                "SELECT\n"
+                "  state       AS \"Status\",\n"
+                "  COUNT(*)    AS \"Anzahl Aufträge\"\n"
                 "FROM scm_production_order\n"
                 "GROUP BY state\n"
-                "ORDER BY anzahl DESC"
+                "ORDER BY \"Anzahl Aufträge\" DESC"
             ),
             "domain": "scm",
             "difficulty": 1,
