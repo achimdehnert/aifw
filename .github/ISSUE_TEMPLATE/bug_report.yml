@@ -1,0 +1,41 @@
+name: "Bug Report"
+description: "Einen Fehler melden"
+title: "[BUG] "
+labels: ["bug", "triage"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: "Zusammenfassung"
+      description: "Was passiert? Was wird erwartet?"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Reproduktionsschritte"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: "Erwartetes Verhalten"
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: "Tatsaechliches Verhalten"
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: "Schweregrad"
+      options:
+        - "critical — Produktionsausfall"
+        - "high — Kernfunktion defekt"
+        - "medium — Workaround moeglich"
+        - "low — Kosmetisch"
+    validations:
+      required: true

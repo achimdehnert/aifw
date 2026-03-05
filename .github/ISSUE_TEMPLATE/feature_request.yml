@@ -1,0 +1,33 @@
+name: "Feature Request"
+description: "Neue Funktion vorschlagen"
+title: "[FEATURE] "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Problem / Motivation"
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: "Vorgeschlagene Loesung"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: "Akzeptanzkriterien"
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Prioritaet"
+      options:
+        - "high — MVP-relevant"
+        - "medium — Wichtig, nicht blockierend"
+        - "low — Nice-to-have"
+    validations:
+      required: true

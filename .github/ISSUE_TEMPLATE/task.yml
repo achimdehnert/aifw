@@ -1,0 +1,46 @@
+name: "Task"
+description: "Technische Aufgabe / Refactoring / Chore"
+title: "[TASK] "
+labels: ["task", "triage"]
+body:
+  - type: dropdown
+    id: task_type
+    attributes:
+      label: "Task-Typ"
+      options:
+        - refactoring
+        - dependency-update
+        - migration
+        - ci-cd
+        - documentation
+        - test-coverage
+        - infrastructure
+        - performance
+        - security
+        - chore
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: "Beschreibung"
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: "Definition of Done"
+    validations:
+      required: true
+  - type: dropdown
+    id: effort
+    attributes:
+      label: "Aufwand"
+      options:
+        - "XS — < 1h"
+        - "S — 1-4h"
+        - "M — 0.5-1 Tag"
+        - "L — 1-3 Tage"
+        - "XL — > 3 Tage"
+    validations:
+      required: true
