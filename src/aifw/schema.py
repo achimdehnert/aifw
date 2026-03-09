@@ -104,7 +104,7 @@ class LLMResult:
             pass
         import re
         pattern = re.compile(
-            r"(?:^|\n)\s*\*{0,2}" + re.escape(name) + r"\*{0,2}:[ \t]*(.+)",
+            r"(?:^|\n)\s*\*{0,2}" + re.escape(name) + r"(?:\*{0,2})?:[ \t]*(.+)",
             re.IGNORECASE,
         )
         match = pattern.search(self.content)
