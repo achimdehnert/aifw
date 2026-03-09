@@ -90,22 +90,4 @@ class Migration(migrations.Migration):
                 "app_label": "aifw",
             },
         ),
-        # ── Seed default tier mappings ────────────────────────────────────────
-        migrations.RunSQL(
-            sql=[
-                ("INSERT OR IGNORE INTO aifw_tierqualitymapping "
-                 "(tier, quality_level, is_active, created_at, updated_at) "
-                 "VALUES (?, ?, 1, datetime('now'), datetime('now'))",
-                 ["premium", 8]),
-                ("INSERT OR IGNORE INTO aifw_tierqualitymapping "
-                 "(tier, quality_level, is_active, created_at, updated_at) "
-                 "VALUES (?, ?, 1, datetime('now'), datetime('now'))",
-                 ["pro", 5]),
-                ("INSERT OR IGNORE INTO aifw_tierqualitymapping "
-                 "(tier, quality_level, is_active, created_at, updated_at) "
-                 "VALUES (?, ?, 1, datetime('now'), datetime('now'))",
-                 ["freemium", 2]),
-            ],
-            reverse_sql=migrations.RunSQL.noop,
-        ),
     ]
