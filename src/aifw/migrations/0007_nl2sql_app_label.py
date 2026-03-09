@@ -19,7 +19,6 @@ class Migration(migrations.Migration):
         migrations.SeparateDatabaseAndState(
             database_operations=[],
             state_operations=[
-                migrations.DeleteModel(name="SchemaSource"),
                 migrations.DeleteModel(name="NL2SQLFeedback"),
                 migrations.DeleteModel(name="NL2SQLExample"),
             ],
