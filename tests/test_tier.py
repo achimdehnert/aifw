@@ -38,11 +38,12 @@ def test_should_return_quality_level_for_known_tier():
 
 @pytest.mark.django_db
 def test_should_return_none_for_unknown_tier():
-    """get_quality_level_for_tier returns None if tier not in DB."""
+    """get_quality_level_for_tier returns BALANCED (5) as default for unknown tier."""
     from aifw.service import get_quality_level_for_tier
+    from aifw.constants import QualityLevel
 
     result = get_quality_level_for_tier("nonexistent_tier_xyz")
-    assert result is None
+    assert result == QualityLevel.BALANCED
 
 
 @pytest.mark.django_db
