@@ -1,11 +1,10 @@
 """
-0006 — NL2SQLExample + NL2SQLFeedback
+0008 — NL2SQLExample + NL2SQLFeedback
 
 NL2SQLExample:  Verified Q→SQL pairs for few-shot prompting.
 NL2SQLFeedback: Auto-captured SQL errors + manual corrections pipeline.
 
-Depends on 0005 (SchemaSource) which is in the installed whl (0.6.0).
-We depend on 0004_schemasource here since that's what's in local migrations.
+Renamed from 0006 to resolve conflict with 0006_delete_schemasource migration.
 """
 from django.db import migrations, models
 import django.db.models.deletion
@@ -14,7 +13,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("aifw", "0005_quality_level_routing"),
+        ("aifw", "0006_delete_schemasource_alter_aiactiontype_options_and_more"),
     ]
 
     operations = [
@@ -50,15 +49,6 @@ class Migration(migrations.Migration):
                 ),
                 ("promoted", models.BooleanField(default=False, verbose_name="Zu Example promoted")),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
-                (
-                    "source",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="feedback",
-                        to="aifw.schemasource",
-                        verbose_name="Schema Source",
-                    ),
-                ),
             ],
             options={
                 "verbose_name": "NL2SQL Feedback",
@@ -80,15 +70,6 @@ class Migration(migrations.Migration):
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("verified_at", models.DateTimeField(blank=True, null=True)),
                 (
-                    "source",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="examples",
-                        to="aifw.schemasource",
-                        verbose_name="Schema Source",
-                    ),
-                ),
-                (
                     "promoted_from",
                     models.ForeignKey(
                         blank=True,
@@ -104,7 +85,7 @@ class Migration(migrations.Migration):
                 "verbose_name": "NL2SQL Beispiel",
                 "verbose_name_plural": "NL2SQL Beispiele",
                 "db_table": "aifw_nl2sql_examples",
-                "ordering": ["source", "difficulty", "id"],
+                "ordering": ["difficulty", "id"],
                 "app_label": "aifw",
             },
         ),

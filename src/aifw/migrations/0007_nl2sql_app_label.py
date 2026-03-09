@@ -12,7 +12,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("aifw", "0006_nl2sql_example_feedback"),
+        ("aifw", "0008_nl2sql_example_feedback"),
     ]
 
     operations = [
