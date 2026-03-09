@@ -95,6 +95,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           print-hash: true
+          password: ${{ secrets.PYPI_API_TOKEN }}
 
   publish-testpypi:
     name: Publish to TestPyPI
