@@ -662,6 +662,12 @@ async def completion(
         if tool_choice:
             kwargs["tool_choice"] = tool_choice
 
+    if not kwargs.get("model"):
+        return LLMResult(
+            success=False,
+            error=f"No model configured for action {action_code!r}",
+        )
+
     start_time = time.perf_counter()
     try:
         response = await litellm.acompletion(**kwargs)
