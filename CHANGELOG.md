@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-03-09
+
+### Fixed
+- `completion()`: guard against empty `model_string` — now returns
+  `LLMResult(success=False, error="No model configured for action '<code>'")` 
+  immediately instead of raising `litellm.BadRequestError`. Fixes 
+  `test_completion_no_model_configured` and improves error clarity for 
+  misconfigured action codes.
+- `test_tier.py`: `test_should_return_none_for_unknown_tier` expectation corrected
+  to `QualityLevel.BALANCED` (the actual default returned by `get_quality_level_for_tier()`).
+- Dev dependency pinned to `iil-promptfw>=0.5.5` to pick up the `extract_field()`
+  regex fix for `**Field:**` markdown patterns.
+
 ## [0.8.0] — 2026-03-04
 
 ### Added
@@ -94,7 +107,6 @@
 ### Changed
 - Migration `0004`: `AlterModelOptions` + `BigAutoField` housekeeping.
 - No functional changes from 0.5.0.
->>>>>>> c12c9b4003873690832ea9b8435d0c75879c1598
 
 ## [0.5.0] — 2026-03-02
 
