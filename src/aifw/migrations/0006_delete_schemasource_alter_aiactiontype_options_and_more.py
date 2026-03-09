@@ -31,10 +31,9 @@ class Migration(migrations.Migration):
             name='llmprovider',
             options={'verbose_name': 'LLM Provider', 'verbose_name_plural': 'LLM Providers'},
         ),
-        migrations.RenameIndex(
-            model_name='aiusagelog',
-            new_name='aifw_usage__quality_993f55_idx',
-            old_name='idx_usagelog_ql_created',
+        migrations.SeparateDatabaseAndState(
+            database_operations=[],
+            state_operations=[],
         ),
         migrations.AlterField(
             model_name='aiactiontype',
