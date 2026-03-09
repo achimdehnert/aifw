@@ -43,7 +43,7 @@ dev = [
     "pytest-asyncio>=0.23",
     "hatch",
     "ruff",
-    "iil-promptfw>=0.5.4",
+    "iil-promptfw>=0.5.5",
 ]
 
 [build-system]
