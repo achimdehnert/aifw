@@ -95,6 +95,7 @@ jobs:
         with:
           print-hash: true
           password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
 
   publish-testpypi:
     name: Publish to TestPyPI
