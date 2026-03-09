@@ -238,7 +238,8 @@ async def test_should_pass_tenant_id_to_log_usage():
     log_usage_calls = []
 
     async def _capture_log_usage(
-        config, result, user=None, tenant_id=None, object_id="", metadata=None
+        config, result, user=None, tenant_id=None, object_id="", metadata=None,
+        quality_level=None,
     ):
         log_usage_calls.append({
             "tenant_id": tenant_id,
@@ -290,7 +291,8 @@ async def test_should_accept_string_tenant_id():
     log_usage_calls = []
 
     async def _capture_log_usage(
-        config, result, user=None, tenant_id=None, object_id="", metadata=None
+        config, result, user=None, tenant_id=None, object_id="", metadata=None,
+        quality_level=None,
     ):
         log_usage_calls.append({"tenant_id": tenant_id})
 
