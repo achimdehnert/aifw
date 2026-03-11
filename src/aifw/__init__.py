@@ -12,7 +12,7 @@ New in 0.6.0:
     invalidate_action_cache() / invalidate_tier_cache()
 """
 
-__version__ = "0.6.0"
+__version__ = "0.8.0"
 
 from aifw.constants import QualityLevel
 from aifw.exceptions import AIFWError, ConfigurationError, OrchestrationError
