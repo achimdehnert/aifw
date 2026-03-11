@@ -1,7 +1,7 @@
 """
-aifw/types.py — TypedDict contracts for aifw 0.6.0 public API.
+aifw/types.py — TypedDict contracts for aifw public API.
 
-ADR-097 §5.2 — ActionConfig shape.
+ADR-097 §5.2 — ActionConfig shape.  0.9.0: added model_string alias.
 
 Consumers (authoringfw, bfagent, etc.) depend on this contract.
 Changes to ActionConfig are breaking changes requiring a minor version bump.
@@ -28,6 +28,7 @@ class ActionConfig(TypedDict):
     action_code: str
     model_id: int
     model: str            # LiteLLM model string e.g. "gpt-4o", "anthropic/claude-3-5-sonnet"
+    model_string: str     # Alias of model — used by _build_kwargs and legacy callers
     provider: str         # Provider name e.g. "openai", "anthropic"
     base_url: str         # Provider base URL (empty string if not set)
     api_key_env_var: str  # Env var name holding the API key

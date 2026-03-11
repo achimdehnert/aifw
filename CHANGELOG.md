@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-03-11
+
+### Fixed
+- **`_to_action_config()` KeyError**: `_build_kwargs()` reads `config["model_string"]`
+  but `_to_action_config()` only set `config["model"]` via `ActionConfig` TypedDict.
+  Now both `model` and `model_string` are set consistently.
+- `ActionConfig` TypedDict extended with `model_string: str` field (alias of `model`).
+  This is a **backwards-compatible** addition — existing consumers using `config["model"]`
+  continue to work unchanged.
+
 ## [0.8.1] — 2026-03-09
 
 ### Fixed

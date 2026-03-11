@@ -263,11 +263,13 @@ def _to_action_config(action: "AIActionType") -> ActionConfig:  # type: ignore[n
             f"Check default_model and fallback_model configuration."
         )
     from aifw.service import _build_model_string, _get_api_key
+    ms = _build_model_string(model.provider.name, model.name)
     return ActionConfig(
         action_id=action.id,
         action_code=action.code,
         model_id=model.id,
-        model=_build_model_string(model.provider.name, model.name),
+        model=ms,
+        model_string=ms,
         provider=model.provider.name,
         base_url=model.provider.base_url or "",
         api_key_env_var=model.provider.api_key_env_var or "",
