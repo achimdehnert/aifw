@@ -1,6 +1,6 @@
 [project]
 name = "iil-aifw"
-version = "0.8.0"
+version = "0.8.1"
 description = "Django AI Services Framework — DB-driven LLM routing, quality tiers, NL2SQL"
 readme = "README.md"
 requires-python = ">=3.11"
