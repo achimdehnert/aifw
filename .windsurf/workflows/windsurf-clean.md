@@ -1,10 +1,1 @@
----
-description: Kill stale Windsurf processes
----
-
-# Windsurf Clean
-
-// turbo
-```bash
-ssh hetzner-dev 'bash ~/fix-windsurf-remote.sh --clean'
-```
+/home/dehnert/github/platform/.windsurf/workflows/windsurf-clean.md
