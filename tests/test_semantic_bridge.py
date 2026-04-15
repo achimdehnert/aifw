@@ -63,6 +63,20 @@ class TestGlossaryMatching:
         hints = bridge.analyze("Lieferanten aus welchen Ländern haben kaputte Maschinen?")
         assert len(hints.glossary_matches) >= 3
 
+    def test_nullbestand_maps_to_stock_quant(self, bridge: SemanticBridge):
+        hints = bridge.analyze("Kritische Teile mit Nullbestand")
+        terms = [g.term for g in hints.glossary_matches]
+        assert "nullbestand" in terms
+        assert "teile" in terms or "teil" in terms
+        match = next(g for g in hints.glossary_matches if g.term == "nullbestand")
+        assert match.target_table == "stock_quant"
+        assert "<= 0" in match.sql_hint
+
+    def test_kritisch_maps_to_orderpoint(self, bridge: SemanticBridge):
+        hints = bridge.analyze("Kritische Teile mit Nullbestand")
+        terms = [g.term for g in hints.glossary_matches]
+        assert "kritisch" in terms
+
 
 # ── Domain Detection ─────────────────────────────────────────────────────────
 
@@ -80,6 +94,10 @@ class TestDomainDetection:
     def test_base_domain(self, bridge: SemanticBridge):
         hints = bridge.analyze("Alle Kunden aus Deutschland anzeigen")
         assert hints.domain == "base"
+
+    def test_stock_domain(self, bridge: SemanticBridge):
+        hints = bridge.analyze("Kritische Teile mit Nullbestand")
+        assert hints.domain == "stock"
 
     def test_no_domain_for_generic(self, bridge: SemanticBridge):
         hints = bridge.analyze("Wie ist das Wetter?")

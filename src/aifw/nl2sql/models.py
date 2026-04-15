@@ -116,12 +116,14 @@ class NL2SQLFeedback(models.Model):
     """
 
     ERROR_TYPE_CHOICES = [
-        ("schema_error",  "Schema-Fehler (halluziniertes Feld)"),
-        ("table_error",   "Tabellen-Fehler (halluzinierte Tabelle)"),
-        ("join_error",    "Join-Fehler (falscher Join-Pfad)"),
-        ("syntax_error",  "Syntax-Fehler"),
-        ("timeout",       "Timeout"),
-        ("unknown",       "Unbekannt"),
+        ("schema_error",     "Schema-Fehler (halluziniertes Feld)"),
+        ("table_error",      "Tabellen-Fehler (halluzinierte Tabelle)"),
+        ("join_error",       "Join-Fehler (falscher Join-Pfad)"),
+        ("syntax_error",     "Syntax-Fehler"),
+        ("cannot_answer",    "CANNOT_ANSWER (Frage außerhalb Schema-Scope)"),
+        ("generation_error", "Generierungs-Fehler (kein valides SQL)"),
+        ("timeout",          "Timeout"),
+        ("unknown",          "Unbekannt"),
     ]
 
     source = models.ForeignKey(

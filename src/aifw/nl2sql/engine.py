@@ -121,6 +121,10 @@ def _validate_sql(sql: str, blocked: set[str]) -> str | None:
 
 def _classify_error(error_msg: str) -> str:
     msg = error_msg.lower()
+    if "cannot_answer" in msg or "cannot answer" in msg:
+        return "cannot_answer"
+    if "kein gültiges sql" in msg or "kein valides sql" in msg:
+        return "generation_error"
     if "does not exist" in msg and "column" in msg:
         return "schema_error"
     if "does not exist" in msg and "table" in msg:
@@ -457,12 +461,21 @@ class NL2SQLEngine:
         raw_sql = _extract_sql(llm_result.content)
         if raw_sql is None:
             if "CANNOT_ANSWER" in llm_result.content.upper():
+                self._capture_feedback(
+                    source, question, "CANNOT_ANSWER",
+                    f"LLM konnte keine SQL-Antwort generieren. Frage evtl. außerhalb Schema-Scope. "
+                    f"Semantic hints: {semantic_block[:200] if semantic_block else 'keine'}",
+                )
                 return NL2SQLResult(
                     success=False,
                     error="Diese Frage kann nicht mit SQL beantwortet werden.",
-                    error_type="NL2SQLGenerationError",
+                    error_type="NL2SQLCannotAnswer",
                     generation=generation,
                 )
+            self._capture_feedback(
+                source, question, llm_result.content[:500],
+                f"LLM hat kein gültiges SQL generiert sondern: {llm_result.content[:200]}",
+            )
             return NL2SQLResult(
                 success=False,
                 error=f"LLM hat kein gültiges SQL generiert: {llm_result.content[:200]}",

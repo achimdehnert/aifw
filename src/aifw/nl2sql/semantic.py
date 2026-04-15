@@ -112,6 +112,32 @@ _DEFAULT_GLOSSARY: list[GlossaryEntry] = [
     GlossaryEntry("überfällig", "date_planned", "casting_order",
                    "date_planned < CURRENT_DATE AND state NOT IN ('done','cancelled')", "filter"),
     GlossaryEntry("fällig", "date_planned", "casting_order", "date_planned", "synonym"),
+
+    # ── Stock / Inventory domain ──
+    GlossaryEntry("teil", "product_id", "stock_quant",
+                   "stock_quant JOIN product_product pp ON pp.id = sq.product_id JOIN product_template pt ON pt.id = pp.product_tmpl_id", "synonym"),
+    GlossaryEntry("teile", "product_id", "stock_quant",
+                   "stock_quant JOIN product_product pp ON pp.id = sq.product_id JOIN product_template pt ON pt.id = pp.product_tmpl_id", "synonym"),
+    GlossaryEntry("artikel", "product_id", "stock_quant",
+                   "stock_quant JOIN product_product → product_template", "synonym"),
+    GlossaryEntry("produkt", "name", "product_template",
+                   "product_template.name->>'en_US' (JSONB)", "synonym"),
+    GlossaryEntry("produkte", "name", "product_template",
+                   "product_template.name->>'en_US' (JSONB)", "synonym"),
+    GlossaryEntry("nullbestand", "quantity", "stock_quant",
+                   "quantity <= 0 (auf internen Lagerorten: stock_location.usage = 'internal')", "filter"),
+    GlossaryEntry("bestand", "quantity", "stock_quant",
+                   "SUM(quantity) GROUP BY product_id (nur stock_location.usage = 'internal')", "synonym"),
+    GlossaryEntry("lagerbestand", "quantity", "stock_quant",
+                   "SUM(quantity) über stock_quant WHERE stock_location.usage = 'internal'", "synonym"),
+    GlossaryEntry("kritisch", "product_min_qty", "stock_warehouse_orderpoint",
+                   "Bestand < product_min_qty (stock_warehouse_orderpoint)", "filter"),
+    GlossaryEntry("mindestbestand", "product_min_qty", "stock_warehouse_orderpoint",
+                   "product_min_qty in stock_warehouse_orderpoint", "synonym"),
+    GlossaryEntry("lagerort", "location_id", "stock_quant",
+                   "FK → stock_location: JOIN stock_location sl ON sl.id = sq.location_id → sl.complete_name", "synonym"),
+    GlossaryEntry("artikelnummer", "default_code", "product_template", "default_code", "synonym"),
+    GlossaryEntry("barcode", "barcode", "product_product", "barcode", "synonym"),
 ]
 
 
@@ -141,8 +167,13 @@ _DOMAIN_KEYWORDS: dict[str, list[str]] = {
         "störung", "kaputt", "wartung", "casting", "mold",
     ],
     "scm": [
-        "bestellung", "einkauf", "lieferant", "lieferung", "lager", "teil",
-        "fertigung", "produktion", "bom", "stückliste", "purchase", "warehouse",
+        "bestellung", "einkauf", "lieferant", "lieferung",
+        "fertigung", "produktion", "bom", "stückliste", "purchase",
+    ],
+    "stock": [
+        "teil", "teile", "artikel", "produkt", "produkte", "lager", "bestand",
+        "nullbestand", "lagerbestand", "lagerort", "kritisch", "mindestbestand",
+        "barcode", "artikelnummer", "vorrat", "inventory", "stock", "warehouse",
     ],
     "base": [
         "kunde", "kunden", "partner", "land", "länder", "firma", "unternehmen",
