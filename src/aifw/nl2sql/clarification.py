@@ -88,8 +88,26 @@ Verfügbare Domänen: {domains}
 
 WICHTIG für options: IMMER Objekte mit label/description/hint — NIEMALS nur Strings!
 
-EINDEUTIG (is_ambiguous=false, confidence<0.5): konkrete Entität, Zahl, Datum, Name, expliziter Filter
-AMBIG (is_ambiguous=true, confidence>=0.65): allgemeine Status-Fragen, fehlende Entität, Pronomen ohne Kontext\
+EINDEUTIG (is_ambiguous=false, confidence<0.3) — die meisten Fragen sind EINDEUTIG:
+- Konkrete Entität oder Tabelle genannt: "Maschinen", "Aufträge", "Teile", "Lieferanten"
+- Filter oder Bedingung: "in Störung", "mit Ausschuss > 5%", "mit Nullbestand"
+- Zeitangabe: "diese Woche", "letzte 30 Tage"
+- Aggregation: "Top 5", "Wie viele", "Zeige alle"
+- Beispiele EINDEUTIGER Fragen:
+  * "Welche Maschinen sind gerade in Störung?" → EINDEUTIG (Entität=Maschinen, Filter=Störung)
+  * "Zeige Aufträge mit Ausschuss > 5%" → EINDEUTIG (Entität=Aufträge, Filter=Ausschuss)
+  * "Top 5 Maschinen nach aktiven Aufträgen" → EINDEUTIG (Aggregation+Entität)
+  * "Kritische Teile mit Nullbestand" → EINDEUTIG (Entität=Teile, Filter=Nullbestand)
+  * "Lieferanten aus Deutschland" → EINDEUTIG (Entität=Lieferanten, Filter=Deutschland)
+
+AMBIG (is_ambiguous=true, confidence>=0.85) — NUR bei wirklich vagen Fragen:
+- Keinerlei Entität, Filter oder Kontext
+- Beispiele AMBIGER Fragen:
+  * "Wie läuft es?" → AMBIG (kein Bezug)
+  * "Zeig mir eine Übersicht" → AMBIG (wovon?)
+  * "Status" → AMBIG (wovon?)
+
+IM ZWEIFEL: is_ambiguous=false! Lieber SQL versuchen als den User mit Rückfragen nerven.\
 """
 
 
@@ -105,8 +123,18 @@ class ClarificationDetector:
     — lieber SQL versuchen als den User zu blockieren.
     """
 
-    DEFAULT_THRESHOLD = 0.65
-    HISTORY_THRESHOLD = 0.80  # Mit Gesprächsverlauf: höhere Schwelle nötig
+    DEFAULT_THRESHOLD = 0.80
+    HISTORY_THRESHOLD = 0.90  # Mit Gesprächsverlauf: höhere Schwelle nötig
+
+    # Keywords die auf eine spezifische Frage hindeuten → skip LLM call
+    _SPECIFIC_KEYWORDS = [
+        "maschine", "maschinen", "auftrag", "aufträge", "störung", "ausschuss",
+        "teil", "teile", "produkt", "produkte", "bestand", "nullbestand",
+        "lieferant", "lieferanten", "top", "wie viele", "zeige", "liste",
+        "qualität", "prüfung", "wartung", "lager", "einkauf", "bestellung",
+        "fällig", "überfällig", "kritisch", "aktiv", "letzte", "diese woche",
+        "legierung", "guss", "gieß", "form", "halle", "country", "partner",
+    ]
 
     def __init__(
         self,
@@ -140,6 +168,17 @@ class ClarificationDetector:
                 is_ambiguous=False,
                 confidence=0.0,
                 reason="Keine Domänen konfiguriert — Clarification deaktiviert",
+                question="",
+            )
+
+        # Fast path: keyword pre-check — skip LLM if question is clearly specific
+        q_lower = question.lower()
+        matched_keywords = [kw for kw in self._SPECIFIC_KEYWORDS if kw in q_lower]
+        if len(matched_keywords) >= 2:
+            return ClarificationResult(
+                is_ambiguous=False,
+                confidence=0.0,
+                reason=f"Spezifische Keywords erkannt: {', '.join(matched_keywords[:5])}",
                 question="",
             )
 
