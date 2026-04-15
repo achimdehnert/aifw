@@ -501,6 +501,9 @@ async def get_model_config(action_code: str) -> dict[str, Any]:
 
     try:
         from aifw.models import AIActionType, LLMModel
+        from django.db import close_old_connections
+
+        await sync_to_async(close_old_connections)()
 
         action = await sync_to_async(
             lambda: AIActionType.objects.select_related(
