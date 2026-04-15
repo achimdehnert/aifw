@@ -62,6 +62,27 @@ Spaltenaliase (PFLICHT):
 - Beispiel: state AS "Status", total_scrap_pct AS "Ausschuss %", name AS "Auftrag"
 - Aggregat-Aliase: COUNT(*) AS "Anzahl", SUM(...) AS "Gesamt", AVG(...) AS "Durchschnitt"
 
+PostgreSQL-Syntax (PFLICHT — KEIN MySQL!):
+- INTERVAL immer mit Quotes: INTERVAL '7 days' — NIEMALS INTERVAL 7 DAY
+- Datum-Differenz: CURRENT_DATE - INTERVAL '7 days', NICHT DATE_SUB()
+- String-Concat: || statt CONCAT()
+- Boolean: TRUE/FALSE, nicht 1/0
+- ILIKE für case-insensitive, LIKE ist case-sensitive
+- LIMIT ohne OFFSET braucht kein Komma
+
+JSONB-Felder (Odoo translated fields):
+- name-Spalten in Odoo-Stammdaten (res_country, res_partner, etc.) sind oft JSONB
+- Für Text-Vergleiche IMMER casten: name::text ILIKE '%suchbegriff%'
+- Für Anzeige: name->>'en_US' AS "Name" ODER name::text AS "Name"
+- NIEMALS direkte ILIKE/LIKE auf JSONB ohne Cast
+
+FK-Auflösung (PFLICHT):
+- Fremdschlüssel-IDs (z.B. country_id, partner_id, machine_id, alloy_id) NIEMALS als nackte Zahl ausgeben
+- Stattdessen IMMER per JOIN die referenzierte Tabelle einbinden und deren name-Feld selektieren
+- Beispiel: STATT rp.country_id → JOIN res_country rc ON rc.id = rp.country_id … rc.name AS "Land"
+- Beispiel: STATT col.machine_id → JOIN casting_machine cm ON cm.id = col.machine_id … cm.name AS "Maschine"
+- Wenn die referenzierte Tabelle nicht im Schema ist, die _id-Spalte komplett weglassen
+
 Schema:
 {schema_xml}
 """
@@ -192,6 +213,7 @@ def _execute_query(
 def _inject_limit(sql: str, limit: int) -> str:
     if re.search(r"\bLIMIT\s+\d+", sql, re.IGNORECASE):
         return sql
+    sql = sql.rstrip().rstrip(";").rstrip()
     return f"{sql} LIMIT {limit}"
 
 
@@ -222,6 +244,7 @@ class NL2SQLEngine:
         self,
         source_code: str = "odoo_mfg",
         clarification_domains: list[str] | None = None,
+        enable_semantic: bool = True,
     ) -> None:
         self.source_code = source_code
         self._source: Any = None
@@ -231,6 +254,12 @@ class NL2SQLEngine:
             self._clarifier: Any = ClarificationDetector(domains=clarification_domains)
         else:
             self._clarifier = None
+        # Semantic Bridge — opt-in, non-breaking
+        if enable_semantic:
+            from aifw.nl2sql.semantic import SemanticBridge
+            self._semantic: Any = SemanticBridge.from_schema_source(source_code)
+        else:
+            self._semantic = None
 
     def _load_source(self):
         if self._source is not None:
@@ -263,18 +292,79 @@ class NL2SQLEngine:
             block += f"FRAGE: {ex.question}\nSQL:\n{ex.sql}\n\n"
         return block
 
-    def _capture_feedback(self, source, question: str, bad_sql: str, error_msg: str) -> None:
+    def _capture_feedback(self, source, question: str, bad_sql: str, error_msg: str) -> int | None:
         try:
             from aifw.nl2sql.models import NL2SQLFeedback
-            NL2SQLFeedback.objects.create(
+            fb = NL2SQLFeedback.objects.create(
                 source=source,
                 question=question,
                 bad_sql=bad_sql,
                 error_message=error_msg,
                 error_type=_classify_error(error_msg),
             )
+            return fb.pk
         except Exception as e:
             logger.warning("NL2SQLFeedback konnte nicht gespeichert werden: %s", e)
+            return None
+
+    def _auto_promote_correction(
+        self, feedback_pk: int | None, source, question: str, corrected_sql: str,
+    ) -> None:
+        """When retry succeeds, store corrected SQL and auto-promote to example."""
+        if feedback_pk is None:
+            return
+        try:
+            from aifw.nl2sql.models import NL2SQLExample, NL2SQLFeedback
+
+            fb = NL2SQLFeedback.objects.get(pk=feedback_pk)
+            fb.corrected_sql = corrected_sql
+            fb.promoted = True
+            fb.save(update_fields=["corrected_sql", "promoted"])
+
+            exists = NL2SQLExample.objects.filter(
+                source=source, question=question,
+            ).exists()
+            if not exists:
+                NL2SQLExample.objects.create(
+                    source=source,
+                    question=question,
+                    sql=corrected_sql,
+                    domain="auto",
+                    difficulty=2,
+                    is_active=True,
+                    promoted_from=fb,
+                )
+                logger.info(
+                    "NL2SQL auto-promoted: '%s' → Example (from feedback #%d)",
+                    question[:60], feedback_pk,
+                )
+        except Exception as e:
+            logger.warning("Auto-promote fehlgeschlagen: %s", e)
+
+    def _load_error_antipatterns(self, source) -> str:
+        """Load recent error patterns as anti-examples for the prompt."""
+        try:
+            from django.db.models import Count
+            from aifw.nl2sql.models import NL2SQLFeedback
+
+            patterns = (
+                NL2SQLFeedback.objects
+                .filter(source=source, promoted=False)
+                .values("error_type", "error_message")
+                .annotate(count=Count("id"))
+                .filter(count__gte=2)
+                .order_by("-count")[:5]
+            )
+            if not patterns:
+                return ""
+
+            block = "\nHÄUFIGE FEHLER — vermeide diese Muster:\n"
+            for p in patterns:
+                msg = p["error_message"][:120]
+                block += f"- {p['error_type']} ({p['count']}x): {msg}\n"
+            return block
+        except Exception:
+            return ""
 
     def ask(
         self,
@@ -294,6 +384,7 @@ class NL2SQLEngine:
         question: str,
         conversation_history: list[dict],
         retry_count: int = 0,
+        _first_feedback_pk: int | None = None,
     ) -> NL2SQLResult:
         # Stufe 0: Clarification-Check (nur beim ersten Versuch, nicht bei Retry)
         if self._clarifier is not None and retry_count == 0:
@@ -313,11 +404,28 @@ class NL2SQLEngine:
         examples = self._load_examples(source)
         few_shot = self._build_few_shot_block(examples)
 
+        antipatterns = self._load_error_antipatterns(source)
+
+        # Semantic Bridge: analyze question → inject hints
+        semantic_block = ""
+        if self._semantic is not None:
+            try:
+                hints = self._semantic.analyze(question)
+                semantic_block = hints.to_prompt_block()
+                if hints.domain:
+                    logger.debug(
+                        "NL2SQL Semantic: domain=%s conf=%.0f%% matches=%d",
+                        hints.domain, hints.domain_confidence * 100,
+                        len(hints.glossary_matches),
+                    )
+            except Exception as e:
+                logger.warning("SemanticBridge Fehler (non-fatal): %s", e)
+
         system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
             blocked_tables=", ".join(sorted(blocked)),
             max_rows=source.max_rows,
             schema_xml=source.schema_xml,
-        ) + few_shot
+        ) + few_shot + antipatterns + semantic_block
 
         messages = [{"role": "system", "content": system_prompt}]
         for h in conversation_history:
@@ -383,7 +491,7 @@ class NL2SQLEngine:
             err_str = str(exc)
             logger.warning("NL2SQL SQL-Ausführungsfehler: %s | SQL: %s", err_str, raw_sql)
 
-            self._capture_feedback(source, question, raw_sql, err_str)
+            feedback_pk = self._capture_feedback(source, question, raw_sql, err_str)
 
             if retry_count < 1:
                 logger.info("NL2SQL Retry mit Fehler-Kontext für: %s", question)
@@ -392,11 +500,15 @@ class NL2SQLEngine:
                     {"role": "user", "content": (
                         f"Das SQL hat einen Fehler: {err_str}\n"
                         "Bitte korrigiere das SQL. "
-                        "Wichtig: Prüfe die Join-Hints im Schema sorgfältig "
+                        "Wichtig: Verwende PostgreSQL-Syntax (INTERVAL '7 days' nicht INTERVAL 7 DAY). "
+                        "Prüfe die Join-Hints im Schema sorgfältig "
                         "und verwende nur Felder die dort explizit aufgelistet sind."
                     )},
                 ]
-                return self._run(question, retry_history, retry_count=1)
+                return self._run(
+                    question, retry_history,
+                    retry_count=1, _first_feedback_pk=feedback_pk,
+                )
 
             return NL2SQLResult(
                 success=False,
@@ -423,6 +535,11 @@ class NL2SQLEngine:
             summary=summary,
             chart=chart,
         )
+
+        if retry_count > 0 and _first_feedback_pk is not None:
+            self._auto_promote_correction(
+                _first_feedback_pk, source, question, raw_sql,
+            )
 
         return NL2SQLResult(
             success=True,
