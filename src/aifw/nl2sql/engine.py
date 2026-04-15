@@ -138,6 +138,73 @@ def _classify_error(error_msg: str) -> str:
     return "unknown"
 
 
+def _build_user_hint(error_type: str, error_msg: str, question: str) -> tuple[str, list[str]]:
+    """Map technical error to user-friendly hint + alternative query suggestions."""
+    suggestions: list[str] = []
+
+    if error_type == "NL2SQLCannotAnswer":
+        hint = (
+            "Diese Frage liegt außerhalb des verfügbaren Datenbereichs. "
+            "Versuche eine konkretere Frage zu Maschinen, Aufträgen, "
+            "Beständen oder Lieferanten."
+        )
+        suggestions = [
+            "Welche Maschinen sind in Störung?",
+            "Zeige Aufträge mit Ausschuss > 5%",
+            "Kritische Teile mit Nullbestand",
+            "Offene Bestellungen der letzten 30 Tage",
+        ]
+    elif error_type == "NL2SQLExecutionError":
+        if "does not exist" in error_msg and "column" in error_msg:
+            hint = (
+                "Die Abfrage konnte nicht ausgeführt werden — ein Feld wurde "
+                "nicht erkannt. Bitte formuliere die Frage etwas anders."
+            )
+        elif "syntax error" in error_msg:
+            hint = (
+                "Bei der SQL-Generierung ist ein Fehler aufgetreten. "
+                "Bitte formuliere die Frage etwas konkreter."
+            )
+        elif "timeout" in error_msg.lower():
+            hint = (
+                "Die Abfrage hat zu lange gedauert. Versuche die Frage "
+                "mit einem kleineren Zeitraum oder weniger Daten."
+            )
+        else:
+            hint = (
+                "Die Abfrage konnte nicht ausgeführt werden. "
+                "Bitte versuche es mit einer anderen Formulierung."
+            )
+        suggestions = [
+            "Versuche die Frage konkreter zu stellen",
+            "Nenne spezifische Tabellen: Maschinen, Aufträge, Teile, Lieferanten",
+        ]
+    elif error_type == "NL2SQLGenerationError":
+        hint = (
+            "Der KI-Assistent konnte keine passende Datenbankabfrage erstellen. "
+            "Bitte formuliere die Frage konkreter — z.B. mit Bezug auf "
+            "Maschinen, Aufträge, Bestände oder Qualitätsprüfungen."
+        )
+        suggestions = [
+            "Top 5 Maschinen nach aktiven Aufträgen",
+            "Wie viele Aufträge sind diese Woche fällig?",
+        ]
+    elif error_type == "NL2SQLValidationError":
+        hint = (
+            "Die Anfrage wurde aus Sicherheitsgründen blockiert. "
+            "Bitte stelle nur lesende Fragen zu den verfügbaren Daten."
+        )
+    elif error_type == "LLMError":
+        hint = (
+            "Der KI-Service ist momentan nicht erreichbar. "
+            "Bitte versuche es in einigen Sekunden erneut."
+        )
+    else:
+        hint = "Ein unbekannter Fehler ist aufgetreten. Bitte versuche es erneut."
+
+    return hint, suggestions
+
+
 def _detect_chart(columns: list[dict], rows: list[list]) -> ChartConfig:
     if not columns or not rows:
         return ChartConfig(chart_type="table")
@@ -451,10 +518,13 @@ class NL2SQLEngine:
         )
 
         if not llm_result.success:
+            hint, suggestions = _build_user_hint("LLMError", llm_result.error or "", question)
             return NL2SQLResult(
                 success=False,
                 error=f"LLM-Aufruf fehlgeschlagen: {llm_result.error}",
                 error_type="LLMError",
+                user_hint=hint,
+                suggestions=suggestions,
                 generation=generation,
             )
 
@@ -466,30 +536,39 @@ class NL2SQLEngine:
                     f"LLM konnte keine SQL-Antwort generieren. Frage evtl. außerhalb Schema-Scope. "
                     f"Semantic hints: {semantic_block[:200] if semantic_block else 'keine'}",
                 )
+                hint, suggestions = _build_user_hint("NL2SQLCannotAnswer", "", question)
                 return NL2SQLResult(
                     success=False,
                     error="Diese Frage kann nicht mit SQL beantwortet werden.",
                     error_type="NL2SQLCannotAnswer",
+                    user_hint=hint,
+                    suggestions=suggestions,
                     generation=generation,
                 )
             self._capture_feedback(
                 source, question, llm_result.content[:500],
                 f"LLM hat kein gültiges SQL generiert sondern: {llm_result.content[:200]}",
             )
+            hint, suggestions = _build_user_hint("NL2SQLGenerationError", "", question)
             return NL2SQLResult(
                 success=False,
                 error=f"LLM hat kein gültiges SQL generiert: {llm_result.content[:200]}",
                 error_type="NL2SQLGenerationError",
+                user_hint=hint,
+                suggestions=suggestions,
                 generation=generation,
             )
 
         validation_error = _validate_sql(raw_sql, blocked)
         if validation_error:
+            hint, suggestions = _build_user_hint("NL2SQLValidationError", validation_error, question)
             return NL2SQLResult(
                 success=False,
                 sql=raw_sql,
                 error=f"SQL-Sicherheitsprüfung fehlgeschlagen: {validation_error}",
                 error_type="NL2SQLValidationError",
+                user_hint=hint,
+                suggestions=suggestions,
                 generation=generation,
             )
 
@@ -523,11 +602,14 @@ class NL2SQLEngine:
                     retry_count=1, _first_feedback_pk=feedback_pk,
                 )
 
+            hint, suggestions = _build_user_hint("NL2SQLExecutionError", err_str, question)
             return NL2SQLResult(
                 success=False,
                 sql=raw_sql,
                 error=f"SQL-Ausführungsfehler: {err_str}",
                 error_type="NL2SQLExecutionError",
+                user_hint=hint,
+                suggestions=suggestions,
                 generation=generation,
             )
 

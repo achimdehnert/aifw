@@ -41,6 +41,8 @@ class NL2SQLResult:
     sql: str = ""
     error: str = ""
     error_type: str = ""
+    user_hint: str = ""
+    suggestions: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     generation: GenerationInfo | None = None
     formatted: FormattedResult = field(default_factory=FormattedResult)
