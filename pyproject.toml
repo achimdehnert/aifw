@@ -1,6 +1,6 @@
 [project]
 name = "iil-aifw"
-version = "0.9.0"
+version = "0.9.1"
 description = "Django AI Services Framework — DB-driven LLM routing, quality tiers, NL2SQL"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,6 +12,7 @@ keywords = ["django", "llm", "ai", "openai", "anthropic", "litellm", "ai-service
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Framework :: Django :: 5.0",
+    "Framework :: Django :: 5.2",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
@@ -21,7 +22,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "Django>=5.0,<6.0",
+    "Django>=5.0",
     "litellm>=1.30",
     "tenacity>=8.2",
     "asgiref>=3.7",
