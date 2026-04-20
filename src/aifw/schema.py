@@ -56,6 +56,14 @@ class LLMResult:
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
 
+    def estimate_cost(self) -> "Decimal":
+        """Estimate cost of this LLM call. See :func:`aifw.estimate_cost`."""
+        from decimal import Decimal
+
+        from aifw.cost import estimate_cost as _estimate_cost
+
+        return _estimate_cost(self)
+
     def as_json(self) -> dict[str, Any] | None:
         """Extract JSON object from content. Returns None if not parseable.
 

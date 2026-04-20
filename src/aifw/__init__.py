@@ -12,9 +12,10 @@ New in 0.6.0:
     invalidate_action_cache() / invalidate_tier_cache()
 """
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 from aifw.constants import QualityLevel
+from aifw.cost import estimate_cost
 from aifw.exceptions import AIFWError, ConfigurationError, OrchestrationError
 from aifw.schema import LLMResult, RenderedPromptProtocol, ToolCall
 from aifw.service import (
@@ -38,6 +39,8 @@ __all__ = [
     "__version__",
     # Constants
     "QualityLevel",
+    # Cost estimation
+    "estimate_cost",
     # Types
     "ActionConfig",
     "LLMResult",
