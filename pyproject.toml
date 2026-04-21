@@ -3,7 +3,7 @@ name = "iil-aifw"
 version = "0.10.0"
 description = "Django AI Services Framework — DB-driven LLM routing, quality tiers, NL2SQL"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [
     {name = "Achim Dehnert", email = "achim@dehnert.com"}
