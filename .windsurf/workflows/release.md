@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/workflows/release.md
+/home/adehnert/CascadeProjects/platform/.windsurf/workflows/release.md

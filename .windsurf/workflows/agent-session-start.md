@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/workflows/agent-session-start.md
+/home/adehnert/CascadeProjects/platform/.windsurf/workflows/agent-session-start.md

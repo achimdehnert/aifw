@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/workflows/pr-review.md
+/home/adehnert/CascadeProjects/platform/.windsurf/workflows/pr-review.md

@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/workflows/agentic-coding.md
+/home/adehnert/CascadeProjects/platform/.windsurf/workflows/agentic-coding.md

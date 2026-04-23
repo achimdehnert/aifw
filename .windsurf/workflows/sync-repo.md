@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/workflows/sync-repo.md
+/home/adehnert/CascadeProjects/platform/.windsurf/workflows/sync-repo.md

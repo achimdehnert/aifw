@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/workflows/repo-health-check.md
+/home/adehnert/CascadeProjects/platform/.windsurf/workflows/repo-health-check.md

@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/rules/mcp-tools.md
+/home/adehnert/CascadeProjects/platform/.windsurf/rules/mcp-tools.md

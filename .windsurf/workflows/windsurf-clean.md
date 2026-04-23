@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/workflows/windsurf-clean.md
+/home/adehnert/CascadeProjects/platform/.windsurf/workflows/windsurf-clean.md
