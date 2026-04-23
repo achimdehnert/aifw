@@ -55,7 +55,7 @@ class LLMModel(models.Model):
     """Available LLM models with cost & capability metadata."""
 
     provider = models.ForeignKey(
-        LLMProvider, on_delete=models.CASCADE, related_name="models"
+        LLMProvider, on_delete=models.PROTECT, related_name="models"
     )
     name = models.CharField(max_length=100)
     display_name = models.CharField(max_length=100)
@@ -223,7 +223,7 @@ class AIActionType(models.Model):
 
         today_spend = (
             AIUsageLog.objects.filter(
-                action_code=self.code,
+                action_type__code=self.code,
                 created_at__date=date.today(),
                 success=True,
             ).aggregate(total=models.Sum("estimated_cost"))["total"]
@@ -356,12 +356,4 @@ class AIUsageLog(models.Model):
 
     def save(self, *args, **kwargs) -> None:
         self.total_tokens = self.input_tokens + self.output_tokens
-        if self.model_used:
-            input_cost = (self.input_tokens / 1_000_000) * float(
-                self.model_used.input_cost_per_million
-            )
-            output_cost = (self.output_tokens / 1_000_000) * float(
-                self.model_used.output_cost_per_million
-            )
-            self.estimated_cost = input_cost + output_cost
         super().save(*args, **kwargs)

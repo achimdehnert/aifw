@@ -1,5 +1,12 @@
 # Changelog — aifw
 
+## [0.10.1] — 2026-04-23
+
+- fix: `_budget_exceeded()` used wrong ORM field `action_code` → `action_type__code` (FieldError bug when budget_per_day was set)
+- fix: cost calculation moved from `AIUsageLog.save()` to `_log_usage()` in service layer (SL-001 compliance)
+- fix: `LLMModel.provider` on_delete=CASCADE → PROTECT (prevents accidental cascade delete)
+- fix: Python classifier 3.11 → 3.12 (matches requires-python)
+
 ## [0.10.0] — 2026-04-23
 
 - chore: sync .windsurf rules (typechange symlink→file)

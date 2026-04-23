@@ -608,6 +608,14 @@ async def _log_usage(
             except ValueError:
                 tenant_id = None
 
+        total_tokens = result.input_tokens + result.output_tokens
+        estimated_cost = 0.0
+        if model:
+            estimated_cost = (
+                result.input_tokens / 1_000_000 * float(model.input_cost_per_million)
+                + result.output_tokens / 1_000_000 * float(model.output_cost_per_million)
+            )
+
         await sync_to_async(AIUsageLog.objects.create)(
             action_type=action,
             model_used=model,
@@ -618,6 +626,8 @@ async def _log_usage(
             quality_level=quality_level,
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
+            total_tokens=total_tokens,
+            estimated_cost=estimated_cost,
             latency_ms=result.latency_ms,
             success=result.success,
             error_message=result.error or "",
