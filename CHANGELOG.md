@@ -1,5 +1,19 @@
 # Changelog — aifw
 
+## [0.10.0] — 2026-04-23
+
+- chore: sync .windsurf rules (typechange symlink→file)
+- chore: pin Django>=5.0,<6.0 (upper bound)
+- chore: requires-python >= 3.12
+- chore: add MIT LICENSE
+- feat: add estimate_cost() for LLM cost estimation (#14)
+- fix: relax Django upper bound — remove <6.0 constraint (platform#30)
+- fix(nl2sql): ClarificationDetector blocked clear queries (regression)
+- feat(nl2sql): user-friendly error hints + suggestions
+- feat(nl2sql): capture CANNOT_ANSWER + stock/inventory glossary + schema
+- feat(nl2sql): SemanticBridge + self-learning loop + JSONB rules
+
+
 ## [Unreleased]
 
 ## [0.9.0] — 2026-03-11
