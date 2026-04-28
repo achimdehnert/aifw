@@ -1,5 +1,16 @@
 # Changelog — aifw
 
+## [0.10.2] — 2026-04-28
+
+### Fixed
+- `schema.py`: `LLMResult.field()` Regex-Bug — schließende `**` in `**Field:**`-Pattern kamen nach `:`, nicht davor; `(?:\*{0,2})?` hinter `:` ergänzt
+- `schema.py`: `LLMResult.field()` — promptfw-Abhängigkeit entfernt; eigene Regex ist korrekt und ausreichend
+- `models.py`: `AIUsageLog.save()` berechnet `estimated_cost` wieder automatisch (`model_used.name` korrekt via FK); `_log_usage()`-only war Regression
+- `ci.yml`: Python 3.11 aus Matrix entfernt (requires-python >=3.12)
+- `publish.yml`: Python 3.11 → 3.12
+
+---
+
 ## [0.10.1] — 2026-04-23
 
 - fix: `_budget_exceeded()` used wrong ORM field `action_code` → `action_type__code` (FieldError bug when budget_per_day was set)

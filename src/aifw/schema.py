@@ -97,22 +97,15 @@ class LLMResult:
         Looks for patterns like ``**Field:** value`` or ``Field: value``
         (case-insensitive). Returns default if not found.
 
-        Tries promptfw.parsing.extract_field first, falls back to regex.
-
         Example::
 
             result = sync_completion("story_planning", messages)
             premise = result.field("Premise")
             premise = result.field("Premise", default="")
         """
-        try:
-            from promptfw.parsing import extract_field
-            return extract_field(self.content, name, default=default)
-        except ImportError:
-            pass
         import re
         pattern = re.compile(
-            r"(?:^|\n)\s*\*{0,2}" + re.escape(name) + r"(?:\*{0,2})?:[ \t]*(.+)",
+            r"(?:^|\n)\s*\*{0,2}" + re.escape(name) + r"(?:\*{0,2})?:(?:\*{0,2})?[ \t]*(.+)",
             re.IGNORECASE,
         )
         match = pattern.search(self.content)

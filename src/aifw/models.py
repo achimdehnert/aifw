@@ -355,5 +355,12 @@ class AIUsageLog(models.Model):
         return f"{self.action_type} / {self.model_used} ({self.created_at:%Y-%m-%d})"
 
     def save(self, *args, **kwargs) -> None:
+        from aifw.cost import estimate_cost
         self.total_tokens = self.input_tokens + self.output_tokens
+        if not self.estimated_cost:
+            self.estimated_cost = estimate_cost(
+                model=self.model_used.name if self.model_used else "",
+                input_tokens=self.input_tokens,
+                output_tokens=self.output_tokens,
+            )
         super().save(*args, **kwargs)
