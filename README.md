@@ -14,6 +14,14 @@ pip install iil-aifw
 pip install "iil-aifw[nl2sql]"
 ```
 
+## Extras / Optional Dependencies
+
+| Extra | Additional deps | Purpose |
+|---|---|---|
+| `nl2sql` | *(none — activation-only)* | Activates `aifw.nl2sql` INSTALLED_APPS entry + migrations; no additional download weight |
+| `rag` | `pgvector>=0.3` | Schema-RAG via pgvector (ADR-009 Phase 1, planned) |
+| `dev` | pytest, hatch, ruff, iil-promptfw | Development toolchain |
+
 ## Quick Start
 
 ```python
@@ -192,6 +200,33 @@ QualityLevel.BALANCED  # 5
 QualityLevel.PREMIUM   # 8
 QualityLevel.ALL       # (2, 5, 8)
 ```
+
+## Configuration
+
+### Django Settings
+
+```python
+INSTALLED_APPS = [
+    "aifw",           # core: LLMProvider, LLMModel, AIActionType, AIUsageLog, TierQualityMapping
+    "aifw.nl2sql",    # optional: NL2SQL models + migrations (requires `nl2sql` extra)
+]
+```
+
+Run once after installation to seed default providers and models:
+
+```bash
+python manage.py migrate aifw
+python manage.py init_aifw_config
+```
+
+### Environment Variables (optional)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `AIFW_LOCAL_CACHE_TTL` | `30` | Process-local cache TTL in seconds |
+| `AIFW_CACHE_TTL` | `600` | Shared cache TTL in seconds (Redis-backed) |
+
+No Django settings dict is required — all configuration is managed via Django Admin models.
 
 ## Changelog
 
