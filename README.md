@@ -68,7 +68,7 @@ from aifw.service import (
 )
 ```
 
-### Quality-Level Routing (v0.10.1)
+### Quality-Level Routing (v0.10.2)
 
 Each `AIActionType` row can be scoped to a `quality_level` (1–9) and/or `priority`
 (`'fast'`|`'balanced'`|`'quality'`). A NULL in either dimension acts as catch-all.
