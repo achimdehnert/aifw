@@ -5,7 +5,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from aifw.schema import LLMResult, RenderedPromptProtocol
-from aifw.service import _build_model_string, _get_api_key, _parse_tool_calls
+from aifw.service import (
+    _apply_prompt_caching,
+    _build_kwargs,
+    _build_model_string,
+    _get_api_key,
+    _parse_tool_calls,
+)
 
 
 def test_build_model_string_openai():
@@ -402,3 +408,53 @@ def test_should_return_false_for_missing_action_code():
     from aifw.service import check_action_code
 
     assert check_action_code("nonexistent_action_xyz") is False
+
+
+# ---------------------------------------------------------------------------
+# Prompt caching (Anthropic) — _apply_prompt_caching / _build_kwargs wiring
+# ---------------------------------------------------------------------------
+
+
+def test_should_mark_system_prompt_with_cache_control_for_anthropic():
+    messages = [
+        {"role": "system", "content": "SYS"},
+        {"role": "user", "content": "U"},
+    ]
+    out = _apply_prompt_caching("anthropic/claude-opus-4-7", messages)
+    assert out[0]["content"] == [
+        {"type": "text", "text": "SYS", "cache_control": {"type": "ephemeral"}}
+    ]
+    assert out[1] == {"role": "user", "content": "U"}
+
+
+def test_should_not_touch_messages_for_non_anthropic_providers():
+    messages = [{"role": "system", "content": "SYS"}]
+    assert _apply_prompt_caching("groq/llama-3.3-70b-versatile", messages) is messages
+    assert _apply_prompt_caching("gpt-4o", messages) is messages
+
+
+def test_should_only_mark_first_system_block():
+    messages = [
+        {"role": "system", "content": "A"},
+        {"role": "system", "content": "B"},
+    ]
+    out = _apply_prompt_caching("anthropic/claude-haiku-4-5", messages)
+    assert isinstance(out[0]["content"], list)
+    assert out[1]["content"] == "B"
+
+
+def test_should_not_rewrap_already_structured_system_content():
+    messages = [{"role": "system", "content": [{"type": "text", "text": "X"}]}]
+    assert _apply_prompt_caching("anthropic/claude-opus-4-7", messages) == messages
+
+
+def test_should_passthrough_when_no_system_message():
+    messages = [{"role": "user", "content": "U"}]
+    assert _apply_prompt_caching("anthropic/claude-opus-4-7", messages) == messages
+
+
+def test_build_kwargs_applies_prompt_caching_for_anthropic():
+    config = {"model_string": "anthropic/claude-opus-4-7"}
+    messages = [{"role": "system", "content": "SYS"}, {"role": "user", "content": "U"}]
+    kwargs = _build_kwargs(config, messages, {})
+    assert kwargs["messages"][0]["content"][0]["cache_control"] == {"type": "ephemeral"}
