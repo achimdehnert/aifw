@@ -464,6 +464,46 @@ def _rendered_prompt_to_overrides(rendered) -> dict[str, Any]:
     return overrides
 
 
+def _apply_prompt_caching(
+    model_string: str, messages: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Mark the system prompt as an Anthropic prompt-cache breakpoint.
+
+    Anthropic caches the prefix up to a block flagged with ``cache_control``.
+    Repeated calls that share the system prompt then read it at ~0.1x input
+    price instead of re-billing it in full — the dominant cost lever for
+    agent loops and any flow that re-sends a large stable system prompt.
+
+    Only ``anthropic/`` models are touched (LiteLLM forwards ``cache_control``
+    to the Anthropic API); every other provider is returned unchanged. Below
+    Anthropic's minimum cacheable length the flag is a silent no-op, so this is
+    safe for small one-shot prompts too.
+    """
+    if not model_string.startswith("anthropic/"):
+        return messages
+    out: list[dict[str, Any]] = []
+    marked = False
+    for msg in messages:
+        content = msg.get("content")
+        if not marked and msg.get("role") == "system" and isinstance(content, str):
+            out.append(
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": content,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                }
+            )
+            marked = True
+            continue
+        out.append(msg)
+    return out
+
+
 def _build_kwargs(
     config: dict[str, Any],
     messages: list[dict[str, Any]],
@@ -471,7 +511,7 @@ def _build_kwargs(
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {
         "model": config["model_string"],
-        "messages": messages,
+        "messages": _apply_prompt_caching(config["model_string"], messages),
         "max_tokens": config.get("max_tokens", 2000),
         "temperature": config.get("temperature", 0.7),
     }
