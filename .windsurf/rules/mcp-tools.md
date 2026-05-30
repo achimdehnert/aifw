@@ -1,1 +1,0 @@
-/home/adehnert/CascadeProjects/platform/.windsurf/rules/mcp-tools.md
