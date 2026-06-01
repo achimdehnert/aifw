@@ -12,7 +12,8 @@ New in 0.6.0:
     invalidate_action_cache() / invalidate_tier_cache()
 """
 
-__version__ = "0.10.0"
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 
 from aifw.constants import QualityLevel
 from aifw.cost import estimate_cost
@@ -65,3 +66,12 @@ __all__ = [
     "sync_completion_stream",
     "sync_completion_with_fallback",
 ]
+
+# Single source of truth: the version lives in pyproject.toml and is read back
+# from the installed package metadata. Hardcoding it here caused metadata/code
+# drift (0.10.1/0.10.2 bumped pyproject but not this constant), which tripped the
+# `iil-aifw metadata != code` CI guard in every consumer. Never hardcode again.
+try:
+    __version__ = _pkg_version("iil-aifw")
+except PackageNotFoundError:  # editable/source checkout without installed dist
+    __version__ = "0.0.0+unknown"

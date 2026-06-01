@@ -1,5 +1,11 @@
 # Changelog — aifw
 
+## [0.10.3] — 2026-06-01
+
+### Fixed
+- **Version drift behoben:** `__version__` wurde in `pyproject.toml` (0.10.2) und `src/aifw/__init__.py` (0.10.0) doppelt gepflegt und driftete bei 0.10.1/0.10.2 auseinander. Das veröffentlichte Wheel trug `metadata=0.10.2 / code=0.10.0`, was den `iil-aifw metadata != code — stale tool-cache` CI-Guard (`platform/.github/actions/install-iil-packages`) in **allen** Consumern (dev-hub u.a.) hart fehlschlagen ließ.
+- `__version__` wird jetzt zur Laufzeit aus den Package-Metadaten gelesen (`importlib.metadata.version("iil-aifw")`) — **Single Source of Truth** ist `pyproject.toml`, Drift ist damit strukturell unmöglich.
+
 ## [0.10.2] — 2026-04-28
 
 ### Fixed
