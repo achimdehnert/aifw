@@ -12,7 +12,14 @@ New in 0.6.0:
     invalidate_action_cache() / invalidate_tier_cache()
 """
 
-__version__ = "0.10.0"
+# Single source of truth: derive from installed package metadata
+# (pyproject.toml [project].version) so code & wheel can never drift again (#11).
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+try:
+    __version__ = _pkg_version("iil-aifw")
+except PackageNotFoundError:  # editable/source checkout without install
+    __version__ = "0.0.0+unknown"
 
 from aifw.constants import QualityLevel
 from aifw.cost import estimate_cost
