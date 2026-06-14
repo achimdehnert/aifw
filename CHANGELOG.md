@@ -1,5 +1,13 @@
 # Changelog — aifw
 
+## [0.11.1] — 2026-06-14
+
+### Security / Hardening (NL2SQL)
+- **LLM-generated SQL now runs inside a read-only PostgreSQL transaction.** `_execute_query` issues `SET TRANSACTION READ ONLY` before the query, so any write (INSERT/UPDATE/DELETE/DDL) that slips past the regex blocklist (`_validate_sql`) is rejected by the database itself with *"cannot execute … in a read-only transaction"*. The regex remains the first line of defence; the database is now the enforced one. Only `postgresql` connections are wrapped; if the target alias is already inside an atomic block the read-only guard cannot be applied and a warning is logged (degrades to regex-only, never silently).
+
+### Fixed
+- **`statement_timeout` was a silent no-op under autocommit.** `SET LOCAL statement_timeout` only takes effect inside a transaction; queries previously ran without the configured timeout. Now applied inside the read-only transaction, and `postgresql`-guarded so it no longer errors on non-PostgreSQL aliases.
+
 ## [0.11.0] — 2026-06-14
 
 ### Fixed (Routing was advertised but inert — ADR-095/097)
