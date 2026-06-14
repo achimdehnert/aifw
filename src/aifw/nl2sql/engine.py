@@ -258,18 +258,46 @@ def _execute_query(
     max_rows: int,
     timeout_seconds: int,
 ) -> tuple[list[dict], list[list], float, bool]:
-    from django.db import connections
+    from django.db import connections, transaction
 
     conn = connections[db_alias]
+    is_postgres = conn.vendor == "postgresql"
+    # SET TRANSACTION READ ONLY must be the first statement of its transaction,
+    # so we only own the transaction when not already inside one.
+    own_txn = is_postgres and not conn.in_atomic_block
+    if is_postgres and not own_txn:
+        logger.warning(
+            "NL2SQL: db alias %r already in an atomic block — cannot enforce a "
+            "read-only transaction; relying on _validate_sql only.",
+            db_alias,
+        )
+    limited_sql = _inject_limit(sql, max_rows + 1)
     start = time.perf_counter()
 
-    with conn.cursor() as cursor:
-        if timeout_seconds > 0:
-            cursor.execute(f"SET LOCAL statement_timeout = {timeout_seconds * 1000}")
-        limited_sql = _inject_limit(sql, max_rows + 1)
-        cursor.execute(limited_sql)
-        raw_rows = cursor.fetchall()
-        description = cursor.description or []
+    def _fetch() -> tuple[list, list]:
+        with conn.cursor() as cursor:
+            if own_txn:
+                # Defence in depth: any write that slips past _validate_sql
+                # (regex blocklist) is rejected by PostgreSQL itself with
+                # "cannot execute ... in a read-only transaction". The regex is
+                # the first line of defence; this is the enforced one.
+                cursor.execute("SET TRANSACTION READ ONLY")
+            if is_postgres and timeout_seconds > 0:
+                # statement_timeout via SET LOCAL only takes effect inside a
+                # transaction — under autocommit it was previously a silent no-op.
+                cursor.execute(
+                    f"SET LOCAL statement_timeout = {timeout_seconds * 1000}"
+                )
+            cursor.execute(limited_sql)
+            return cursor.fetchall(), (cursor.description or [])
+
+    if own_txn:
+        with transaction.atomic(using=db_alias):
+            raw_rows, description = _fetch()
+            # Pure read — discard the transaction without COMMIT.
+            transaction.set_rollback(True, using=db_alias)
+    else:
+        raw_rows, description = _fetch()
 
     elapsed_ms = (time.perf_counter() - start) * 1000
     truncated = len(raw_rows) > max_rows
