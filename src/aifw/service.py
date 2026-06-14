@@ -703,11 +703,17 @@ async def _log_usage(
                 tenant_id = None
 
         total_tokens = result.input_tokens + result.output_tokens
+        # Operator-configured DB rates are authoritative for logged cost. When a
+        # model carries no rates this stays 0 and AIUsageLog.save() falls back to
+        # cost.estimate_cost() (litellm / rate table). Single arithmetic helper.
         estimated_cost = 0.0
         if model:
-            estimated_cost = (
-                result.input_tokens / 1_000_000 * float(model.input_cost_per_million)
-                + result.output_tokens / 1_000_000 * float(model.output_cost_per_million)
+            from aifw.cost import cost_from_rates
+            estimated_cost = cost_from_rates(
+                result.input_tokens,
+                result.output_tokens,
+                model.input_cost_per_million,
+                model.output_cost_per_million,
             )
 
         await sync_to_async(AIUsageLog.objects.create)(

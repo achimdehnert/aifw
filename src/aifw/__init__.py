@@ -16,7 +16,7 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
 from aifw.constants import QualityLevel
-from aifw.cost import estimate_cost
+from aifw.cost import cost_from_rates, estimate_cost
 from aifw.exceptions import AIFWError, ConfigurationError, OrchestrationError
 from aifw.schema import LLMResult, RenderedPromptProtocol, ToolCall
 from aifw.service import (
@@ -41,6 +41,7 @@ __all__ = [
     # Constants
     "QualityLevel",
     # Cost estimation
+    "cost_from_rates",
     "estimate_cost",
     # Types
     "ActionConfig",

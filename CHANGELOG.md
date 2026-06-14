@@ -1,5 +1,13 @@
 # Changelog — aifw
 
+## [0.11.2] — 2026-06-14
+
+### Fixed
+- **Stale cost fallback table:** removed the bogus `claude-sonnet-4-5-20250514` entry from `cost._FALLBACK_RATES` (an inconsistent, made-up snapshot id duplicating `claude-3-5-sonnet`'s rates). litellm remains the source of truth; the table is only a coarse last-resort fallback for models litellm does not recognise.
+
+### Changed
+- **Single cost-arithmetic helper:** new `cost.cost_from_rates(input_tokens, output_tokens, input_rate, output_rate)` is now the one place the per-million math lives. `estimate_cost()`'s fallback branch and `_log_usage()` (operator-configured DB rates) both use it instead of duplicating the formula. Exported as `aifw.cost_from_rates`. `_log_usage` now produces a `Decimal` (was `float`); `AIUsageLog.save()` still falls back to `estimate_cost()` when a model has no DB rates.
+
 ## [0.11.1] — 2026-06-14
 
 ### Security / Hardening (NL2SQL)

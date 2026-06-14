@@ -3,8 +3,36 @@
 from decimal import Decimal
 from unittest.mock import patch
 
-from aifw.cost import estimate_cost
+from aifw.cost import _FALLBACK_RATES, cost_from_rates, estimate_cost
 from aifw.schema import LLMResult
+
+
+class TestCostFromRates:
+    """The single per-million arithmetic helper shared by estimate_cost and
+    the usage-log path."""
+
+    def test_should_compute_from_explicit_rates(self):
+        # 1000 * 3.0/1M + 500 * 15.0/1M = 0.003 + 0.0075 = 0.0105
+        assert cost_from_rates(1000, 500, 3.0, 15.0) == Decimal("0.0105")
+
+    def test_should_return_decimal_for_db_decimal_rates(self):
+        assert cost_from_rates(1000, 1000, Decimal("0.15"), Decimal("0.60")) == Decimal("0.00075")
+
+    def test_should_return_zero_for_zero_rates(self):
+        assert cost_from_rates(1000, 1000, 0, 0) == Decimal("0")
+
+    def test_should_never_raise_on_bad_input(self):
+        assert cost_from_rates(1000, 500, None, None) == Decimal("0")
+
+
+class TestFallbackTableHygiene:
+    def test_should_not_contain_bogus_claude_snapshot_id(self):
+        """The placeholder 'claude-sonnet-4-5-20250514' must stay removed."""
+        assert "claude-sonnet-4-5-20250514" not in _FALLBACK_RATES
+
+    def test_fallback_ids_are_unique_and_real_shaped(self):
+        for key in _FALLBACK_RATES:
+            assert "/" not in key  # bare model id, provider prefix stripped at lookup
 
 
 class TestEstimateCostStandalone:

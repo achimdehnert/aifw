@@ -14,18 +14,44 @@ import litellm
 if TYPE_CHECKING:
     from aifw.schema import LLMResult
 
-# Fallback rates: $/1M tokens (input, output)
+# Coarse last-resort fallback rates in $/1M tokens (input, output), keyed by
+# well-known model ids. litellm.cost_per_token() is the source of truth and
+# already covers current models precisely; this table is only consulted when
+# litellm does not recognise the model string. Keep ids real — do not add
+# speculative snapshot ids that litellm would resolve anyway.
+_DEFAULT_RATE: tuple[float, float] = (0.15, 0.60)
 _FALLBACK_RATES: dict[str, tuple[float, float]] = {
     "gpt-4o-mini": (0.15, 0.60),
     "gpt-4o": (2.50, 10.00),
     "gpt-4-turbo": (10.00, 30.00),
     "gpt-3.5-turbo": (0.50, 1.50),
-    "claude-sonnet-4-5-20250514": (3.00, 15.00),
     "claude-3-5-sonnet-20241022": (3.00, 15.00),
     "claude-3-haiku-20240307": (0.25, 1.25),
     "llama-3.3-70b-versatile": (0.59, 0.79),
     "mixtral-8x7b-32768": (0.24, 0.24),
 }
+
+
+def cost_from_rates(
+    input_tokens: int,
+    output_tokens: int,
+    input_rate_per_million: float | Decimal,
+    output_rate_per_million: float | Decimal,
+) -> Decimal:
+    """Compute cost from explicit per-million token rates.
+
+    Single home for the per-million arithmetic — shared by estimate_cost()'s
+    fallback branch and the usage-log path (which uses operator-configured DB
+    rates). Always returns Decimal, never raises.
+    """
+    try:
+        cost = (
+            input_tokens * float(input_rate_per_million) / 1_000_000
+            + output_tokens * float(output_rate_per_million) / 1_000_000
+        )
+        return Decimal(str(round(cost, 8)))
+    except Exception:
+        return Decimal("0")
 
 
 def estimate_cost(
@@ -71,10 +97,6 @@ def estimate_cost(
         pass
 
     # 2. Fallback: built-in rate table
-    try:
-        model_key = model.split("/")[-1]
-        pin, pout = _FALLBACK_RATES.get(model_key, (0.15, 0.60))
-        cost = input_tokens * pin / 1_000_000 + output_tokens * pout / 1_000_000
-        return Decimal(str(round(cost, 8)))
-    except Exception:
-        return Decimal("0")
+    model_key = model.split("/")[-1]
+    pin, pout = _FALLBACK_RATES.get(model_key, _DEFAULT_RATE)
+    return cost_from_rates(input_tokens, output_tokens, pin, pout)
