@@ -62,6 +62,18 @@ pythonpath = ["src", "."]
 
 [tool.ruff]
 line-length = 100
+# Django migrations are auto-generated; linting them fights the generator.
+extend-exclude = ["**/migrations/**"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# NL2SQL prompt/data modules: the long lines are German LLM-prompt text,
+# embedded SQL and glossary/regex literals *inside* string literals — they
+# cannot carry a line-level `# noqa`, and wrapping them would alter the prompt
+# or SQL. E501 is low-value here; every other rule (F, I) stays enforced.
+"src/aifw/nl2sql/semantic.py" = ["E501"]
+"src/aifw/nl2sql/engine.py" = ["E501"]
+"src/aifw/nl2sql/clarification.py" = ["E501"]
+"**/seed_nl2sql_examples.py" = ["E501"]

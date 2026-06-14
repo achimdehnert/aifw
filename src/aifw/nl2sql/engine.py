@@ -416,6 +416,7 @@ class NL2SQLEngine:
         """Load recent error patterns as anti-examples for the prompt."""
         try:
             from django.db.models import Count
+
             from aifw.nl2sql.models import NL2SQLFeedback
 
             patterns = (

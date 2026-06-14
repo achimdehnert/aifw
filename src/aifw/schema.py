@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from decimal import Decimal
 
 
 @runtime_checkable
@@ -58,7 +61,6 @@ class LLMResult:
 
     def estimate_cost(self) -> "Decimal":
         """Estimate cost of this LLM call. See :func:`aifw.estimate_cost`."""
-        from decimal import Decimal
 
         from aifw.cost import estimate_cost as _estimate_cost
 
