@@ -238,6 +238,7 @@ async def test_completion_success():
 async def test_should_pass_tenant_id_to_log_usage():
     """completion() forwards tenant_id to _log_usage."""
     import uuid
+
     from aifw.service import completion
 
     tenant = uuid.uuid4()
@@ -360,6 +361,7 @@ def test_should_return_result_from_sync_completion_with_fallback():
 def test_should_propagate_tenant_id_through_sync_fallback():
     """sync_completion_with_fallback() passes tenant_id to completion_with_fallback."""
     import uuid
+
     from aifw.service import sync_completion_with_fallback
 
     captured = {}

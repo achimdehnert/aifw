@@ -10,8 +10,6 @@ import pytest
 from aifw.nl2sql.semantic import (
     GlossaryEntry,
     SemanticBridge,
-    SemanticHints,
-    TemporalHint,
 )
 
 

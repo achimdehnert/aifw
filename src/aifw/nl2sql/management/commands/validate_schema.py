@@ -124,7 +124,7 @@ class Command(BaseCommand):
                         self.stdout.write(f"    ✓ {col_name}")
 
             if not errors and not warnings:
-                self.stdout.write(self.style.SUCCESS(f"  → Schema vollständig valide"))
+                self.stdout.write(self.style.SUCCESS("  → Schema vollständig valide"))
             else:
                 for w in warnings:
                     self.stdout.write(self.style.WARNING(f"  WARN: {w}"))

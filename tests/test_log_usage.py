@@ -7,7 +7,6 @@ DB write path introduced in migration 0003 / aifw 0.5.0.
 """
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 

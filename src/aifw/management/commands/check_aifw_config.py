@@ -69,7 +69,9 @@ class Command(BaseCommand):
             if has_catchall:
                 self.stdout.write(f"  {self.style.SUCCESS('OK')}  {code}")
             else:
-                self.stdout.write(f"  {self.style.ERROR('MISSING')}  {code} — no active catch-all row")
+                self.stdout.write(
+                    f"  {self.style.ERROR('MISSING')}  {code} — no active catch-all row"
+                )
                 missing.append(code)
 
         self.stdout.write("")

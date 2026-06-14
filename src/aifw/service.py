@@ -28,8 +28,8 @@ import json
 import logging
 import os
 import queue
-import time
 import threading
+import time
 import uuid
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
@@ -37,13 +37,13 @@ from typing import TYPE_CHECKING, Any
 import litellm
 from asgiref.sync import sync_to_async
 
-from aifw.constants import QualityLevel, VALID_PRIORITIES
+from aifw.constants import VALID_PRIORITIES, QualityLevel
 from aifw.exceptions import ConfigurationError
 from aifw.schema import LLMResult, RenderedPromptProtocol, ToolCall
 from aifw.types import ActionConfig
 
 if TYPE_CHECKING:
-    pass
+    from aifw.models import AIActionType
 
 logger = logging.getLogger(__name__)
 
@@ -278,7 +278,7 @@ def _to_action_config(action: "AIActionType") -> ActionConfig:  # type: ignore[n
             f"AIActionType {action.code!r} has no resolvable model. "
             f"Check default_model and fallback_model configuration."
         )
-    from aifw.service import _build_model_string, _get_api_key
+    from aifw.service import _build_model_string
     ms = _build_model_string(model.provider.name, model.name)
     return ActionConfig(
         action_id=action.id,
@@ -593,8 +593,9 @@ async def get_model_config(
         return _with_api_key(cached)
 
     try:
-        from aifw.models import LLMModel
         from django.db import close_old_connections
+
+        from aifw.models import LLMModel
 
         await sync_to_async(close_old_connections)()
 

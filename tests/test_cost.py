@@ -3,8 +3,6 @@
 from decimal import Decimal
 from unittest.mock import patch
 
-import pytest
-
 from aifw.cost import estimate_cost
 from aifw.schema import LLMResult
 

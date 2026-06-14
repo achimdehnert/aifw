@@ -7,7 +7,6 @@ import pytest
 
 from aifw.exceptions import ConfigurationError
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture()
@@ -131,7 +130,7 @@ def test_should_skip_step1_when_quality_level_is_none(model):
     """F-07: step 1 (exact) skipped when quality_level=None."""
     from aifw.service import _lookup_cascade
 
-    catchall = _action("write", model, quality_level=None, priority=None)
+    _action("write", model, quality_level=None, priority=None)  # catch-all (must be skipped)
     prio_only = _action("write", model, quality_level=None, priority="quality")
 
     # Without ql, step1 is impossible — step3 (prio-only) should match

@@ -1,6 +1,6 @@
 """Tests for tier quality mapping (ADR-095/097 TierQualityMapping)."""
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 @pytest.fixture()
@@ -39,8 +39,8 @@ def test_should_return_quality_level_for_known_tier():
 @pytest.mark.django_db
 def test_should_return_none_for_unknown_tier():
     """get_quality_level_for_tier returns BALANCED (5) as default for unknown tier."""
-    from aifw.service import get_quality_level_for_tier
     from aifw.constants import QualityLevel
+    from aifw.service import get_quality_level_for_tier
 
     result = get_quality_level_for_tier("nonexistent_tier_xyz")
     assert result == QualityLevel.BALANCED
@@ -50,7 +50,7 @@ def test_should_return_none_for_unknown_tier():
 def test_should_use_cache_on_second_call(monkeypatch):
     """Second call uses cache — DB not queried again."""
     from aifw.models import TierQualityMapping
-    from aifw.service import get_quality_level_for_tier, _LOCAL_CACHE, _tier_cache_key
+    from aifw.service import _LOCAL_CACHE, _tier_cache_key, get_quality_level_for_tier
 
     TierQualityMapping.objects.create(tier="pro", quality_level=6)
     _LOCAL_CACHE.clear()
@@ -72,6 +72,7 @@ def test_should_use_cache_on_second_call(monkeypatch):
 def test_should_enforce_unique_tier():
     """Duplicate tier names must raise IntegrityError."""
     from django.db import IntegrityError
+
     from aifw.models import TierQualityMapping
 
     TierQualityMapping.objects.create(tier="enterprise", quality_level=9)

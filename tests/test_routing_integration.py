@@ -138,8 +138,8 @@ def test_should_invalidate_completion_config_cache_for_code():
     """invalidate_action_cache(code) must flush 'aifw:cfg:' completion keys,
     not only the 'aifw:action:' ActionConfig keys."""
     from aifw.service import (
-        _completion_cache_key,
         _LOCAL_CACHE,
+        _completion_cache_key,
         _local_set,
         invalidate_action_cache,
     )

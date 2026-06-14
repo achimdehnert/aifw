@@ -1,18 +1,16 @@
 """Tests for aifw cache invalidation (ADR-097 G-097-02/03)."""
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from aifw.service import (
+    _LOCAL_CACHE,
     _action_cache_key,
     _all_action_cache_keys_for_code,
-    _tier_cache_key,
     _cache_get,
     _cache_set,
-    _LOCAL_CACHE,
+    _tier_cache_key,
     invalidate_action_cache,
     invalidate_tier_cache,
 )
-
 
 # ── Cache key helpers ─────────────────────────────────────────────────────────
 
