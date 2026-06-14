@@ -132,16 +132,32 @@ def _action_cache_key(code: str, quality_level: int | None, priority: str | None
 
 
 def _all_action_cache_keys_for_code(code: str) -> list[str]:
-    """Generate all possible cache keys for a given action code."""
+    """Generate all possible cache keys for a given action code.
+
+    Covers both the ActionConfig cache (get_action_config, 'aifw:action:') and
+    the resolved completion-config cache (get_model_config, 'aifw:cfg:') so a
+    single invalidate_action_cache(code) flushes every cached view of the code.
+    """
     keys = []
     for ql in [None, *QualityLevel.ALL]:
         for prio in [None, *VALID_PRIORITIES]:
             keys.append(_action_cache_key(code, ql, prio))
+            keys.append(_completion_cache_key(code, ql, prio))
     return keys
 
 
 def _tier_cache_key(tier: str) -> str:
     return f"aifw:tier:{tier}"
+
+
+def _completion_cache_key(
+    code: str, quality_level: int | None, priority: str | None
+) -> str:
+    """Cache key for the resolved completion config (distinct from the
+    ActionConfig key used by get_action_config to avoid a shape collision)."""
+    ql = str(quality_level) if quality_level is not None else "_"
+    prio = priority if priority is not None else "_"
+    return f"aifw:cfg:{code}:{ql}:{prio}"
 
 
 # ---------------------------------------------------------------------------
@@ -393,6 +409,16 @@ except ImportError:
         return fn
 
 
+@_make_retry
+async def _acompletion_with_retry(**kwargs: Any) -> Any:
+    """litellm.acompletion wrapped with tenacity retry on transient errors.
+
+    Applied to non-streaming completions only — streaming responses must not
+    be retried mid-iteration. No-op passthrough when tenacity is unavailable.
+    """
+    return await litellm.acompletion(**kwargs)
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -404,8 +430,13 @@ def _build_model_string(provider_name: str, model_name: str) -> str:
     return f"{provider}/{model_name}"
 
 
-def _get_api_key(provider) -> str:
-    env_var = provider.api_key_env_var or ""
+def _resolve_api_key(provider_name: str, env_var: str) -> str:
+    """Resolve an API key from the environment by explicit env var first, then
+    by a provider-name fallback map. Returns '' if nothing is configured.
+
+    Kept separate from cached config so secrets are never written to the
+    shared cache — the key is re-resolved fresh on every call.
+    """
     if env_var:
         return os.environ.get(env_var, "")
     fallback_map = {
@@ -414,9 +445,12 @@ def _get_api_key(provider) -> str:
         "google": "GOOGLE_API_KEY",
         "gemini": "GEMINI_API_KEY",
     }
-    name = provider.name.lower()
-    env_var = fallback_map.get(name, "")
+    env_var = fallback_map.get(provider_name.lower(), "")
     return os.environ.get(env_var, "") if env_var else ""
+
+
+def _get_api_key(provider) -> str:
+    return _resolve_api_key(provider.name, provider.api_key_env_var or "")
 
 
 def _parse_tool_calls(message) -> list[ToolCall]:
@@ -529,40 +563,58 @@ def _build_kwargs(
 # Legacy: get_model_config (backwards-compatible wrapper)
 # ---------------------------------------------------------------------------
 
-async def get_model_config(action_code: str) -> dict[str, Any]:
-    """Load model config from DB with hybrid cache. Legacy API — 0.5.x compatible.
+def _with_api_key(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of a cached config with the api_key resolved fresh."""
+    cfg = dict(cfg)
+    cfg["api_key"] = _resolve_api_key(
+        cfg.get("provider_name", ""), cfg.get("api_key_env_var", "")
+    )
+    return cfg
 
-    New code should use get_action_config() instead.
+
+async def get_model_config(
+    action_code: str,
+    quality_level: int | None = None,
+    priority: str | None = None,
+) -> dict[str, Any]:
+    """Resolve the completion config for (action_code, quality_level, priority).
+
+    Routes via the 4-step lookup cascade (ADR-097 §5.1): exact → ql-only →
+    prio-only → catch-all. Falls back to the global default model when no
+    AIActionType row matches at all, and to an empty config (graceful error)
+    when the DB is unavailable.
+
+    Returns a dict consumable by _build_kwargs. The api_key is resolved fresh
+    on every call via _resolve_api_key and is never written to the shared cache.
     """
-    cache_key = _action_cache_key(action_code, None, None)
+    cache_key = _completion_cache_key(action_code, quality_level, priority)
     cached = _cache_get(cache_key)
     if cached is not None:
-        return cached
+        return _with_api_key(cached)
 
     try:
-        from aifw.models import AIActionType, LLMModel
+        from aifw.models import LLMModel
         from django.db import close_old_connections
 
         await sync_to_async(close_old_connections)()
 
-        action = await sync_to_async(
-            lambda: AIActionType.objects.select_related(
-                "default_model__provider",
-                "fallback_model__provider",
-            )
-            .filter(code=action_code, is_active=True)
-            .first()
-        )()
+        def _routed_action():
+            try:
+                return _lookup_cascade(action_code, quality_level, priority)
+            except ConfigurationError:
+                return None
 
-        if action:
-            model = action.get_model()
+        action = await sync_to_async(_routed_action)()
+
+        if action is not None:
+            model = await sync_to_async(action.get_model)()
             if model and model.provider:
                 cfg = {
                     "model_string": _build_model_string(
                         model.provider.name, model.name
                     ),
-                    "api_key": _get_api_key(model.provider),
                     "api_base": model.provider.base_url or None,
+                    "api_key_env_var": model.provider.api_key_env_var or "",
                     "max_tokens": action.max_tokens,
                     "temperature": action.temperature,
                     "action_id": action.id,
@@ -571,8 +623,9 @@ async def get_model_config(action_code: str) -> dict[str, Any]:
                     "model_name": model.name,
                 }
                 _cache_set(cache_key, cfg)
-                return cfg
+                return _with_api_key(cfg)
 
+        # No routed row for this code → global default model (legacy 0.5.x).
         global_default = await sync_to_async(
             lambda: LLMModel.objects.select_related("provider")
             .filter(is_default=True, is_active=True)
@@ -584,8 +637,8 @@ async def get_model_config(action_code: str) -> dict[str, Any]:
                 "model_string": _build_model_string(
                     global_default.provider.name, global_default.name
                 ),
-                "api_key": _get_api_key(global_default.provider),
                 "api_base": global_default.provider.base_url or None,
+                "api_key_env_var": global_default.provider.api_key_env_var or "",
                 "max_tokens": 2000,
                 "temperature": 0.7,
                 "action_id": None,
@@ -594,7 +647,7 @@ async def get_model_config(action_code: str) -> dict[str, Any]:
                 "model_name": global_default.name,
             }
             _cache_set(cache_key, cfg)
-            return cfg
+            return _with_api_key(cfg)
 
     except Exception as e:
         logger.warning("DB config unavailable for '%s': %s", action_code, e)
@@ -710,7 +763,7 @@ async def completion(
             overrides.setdefault(k, v)
         messages = _rendered_prompt_to_messages(messages)
 
-    config = await get_model_config(action_code)
+    config = await get_model_config(action_code, quality_level, priority)
     kwargs = _build_kwargs(config, messages, dict(overrides))
     if tools:
         kwargs["tools"] = tools
@@ -725,7 +778,7 @@ async def completion(
 
     start_time = time.perf_counter()
     try:
-        response = await litellm.acompletion(**kwargs)
+        response = await _acompletion_with_retry(**kwargs)
         latency_ms = int((time.perf_counter() - start_time) * 1000)
         choice = response.choices[0]
         message = choice.message
@@ -766,6 +819,8 @@ async def completion_stream(
     messages: list[dict[str, Any]] | Any,
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | None = "auto",
+    quality_level: int | None = None,
+    priority: str | None = None,
     **overrides: Any,
 ) -> AsyncIterator[str]:
     """Async streaming completion — yields text chunks as they arrive."""
@@ -775,7 +830,7 @@ async def completion_stream(
             overrides.setdefault(k, v)
         messages = _rendered_prompt_to_messages(messages)
 
-    config = await get_model_config(action_code)
+    config = await get_model_config(action_code, quality_level, priority)
     kwargs = _build_kwargs(config, messages, dict(overrides))
     kwargs["stream"] = True
     if tools:
@@ -793,6 +848,8 @@ async def completion_stream(
 def sync_completion_stream(
     action_code: str,
     messages: list[dict[str, Any]] | Any,
+    quality_level: int | None = None,
+    priority: str | None = None,
     **overrides: Any,
 ):
     """Synchronous streaming generator — for Django StreamingHttpResponse."""
@@ -808,7 +865,7 @@ def sync_completion_stream(
 
     async def _produce() -> None:
         try:
-            config = await get_model_config(action_code)
+            config = await get_model_config(action_code, quality_level, priority)
             kwargs = _build_kwargs(config, messages, dict(overrides))
             kwargs["stream"] = True
             response = await litellm.acompletion(**kwargs)

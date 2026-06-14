@@ -1,5 +1,19 @@
 # Changelog — aifw
 
+## [0.11.0] — 2026-06-14
+
+### Fixed (Routing was advertised but inert — ADR-095/097)
+- **`completion()` / `completion_stream()` / `sync_completion_stream()` now actually route by `quality_level` + `priority`.** They previously called the legacy `get_model_config(action_code)`, which ignored both parameters — every call silently resolved the catch-all row. `get_model_config()` now drives the 4-step `_lookup_cascade` (exact → ql-only → prio-only → catch-all) and falls back to the global default / empty config as before.
+- **Tenacity retry layer is now wired in.** `_make_retry` / `_TRANSIENT_ERRORS` were defined but never applied; `completion()` now calls `litellm.acompletion` through `_acompletion_with_retry` (3 attempts, exponential backoff, transient errors only). Streaming paths are intentionally not retried mid-iteration.
+- **Completion-config shape now matches `_build_kwargs`.** The cascade path produces `api_base` + `api_key` (the legacy `ActionConfig` carried `base_url` / `api_key_env_var`, which `_build_kwargs` could not read). API keys are resolved fresh per call via `_resolve_api_key` and are no longer written to the shared cache.
+
+### Added
+- `completion_stream()` / `sync_completion_stream()` accept `quality_level` + `priority` (previously these would have leaked into litellm kwargs).
+- Regression tests proving routing reaches the selected model, retry behaviour, and that `invalidate_action_cache(code)` flushes the new `aifw:cfg:` cache keys.
+
+### Changed
+- Resolved config now caches under a dedicated `aifw:cfg:` key (was colliding-by-shape with `get_action_config`'s `aifw:action:` key); `invalidate_action_cache()` flushes both.
+
 ## [0.10.3] — 2026-06-01
 
 ### Fixed
