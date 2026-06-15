@@ -473,7 +473,6 @@ async def test_should_accept_stack_patterns_context_instead_of_messages():
 
     class FakeStack:
         def render_stack(self, patterns, context):
-            from aifw.schema import LLMResult
             # Return a duck-typed RenderedPrompt
             class R:
                 system = f"system:{context.get('topic','')}"

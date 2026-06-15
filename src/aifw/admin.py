@@ -36,12 +36,12 @@ class TierQualityMappingAdmin(admin.ModelAdmin):
 @admin.register(AIUsageLog)
 class AIUsageLogAdmin(admin.ModelAdmin):
     list_display = [
-        "action_type", "model_used", "quality_level", "user",
+        "action_type", "model_used", "quality_level", "privacy_mode", "user",
         "total_tokens", "estimated_cost", "latency_ms", "success", "created_at",
     ]
-    list_filter = ["success", "quality_level", "action_type", "model_used"]
+    list_filter = ["success", "privacy_mode", "quality_level", "action_type", "model_used"]
     readonly_fields = [
-        "action_type", "model_used", "user", "quality_level",
+        "action_type", "model_used", "user", "quality_level", "privacy_mode",
         "input_tokens", "output_tokens", "total_tokens",
         "estimated_cost", "latency_ms", "success",
         "error_message", "created_at",

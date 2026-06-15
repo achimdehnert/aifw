@@ -283,11 +283,44 @@ class TierQualityMapping(models.Model):
         return f"{self.tier} → ql={self.quality_level}"
 
 
+class AIUsageLogQuerySet(models.QuerySet):
+    """Custom queryset with a k-anonymity aggregation helper (issue #8)."""
+
+    def aggregate_with_k_anonymity(
+        self, *group_by: str, k: int = 3
+    ) -> "models.QuerySet":
+        """Group by the given fields, returning only buckets with ≥ k entries.
+
+        Useful for supervisor-facing usage views without re-identification risk:
+        any group smaller than ``k`` is suppressed entirely. Each surviving row
+        carries ``entry_count``, ``total_tokens`` and ``total_cost``.
+
+        Example::
+
+            AIUsageLog.objects.aggregate_with_k_anonymity(
+                "action_type", "quality_level", k=5
+            )
+        """
+        from django.db.models import Count, Sum
+
+        return (
+            self.values(*group_by)
+            .annotate(
+                entry_count=Count("id"),
+                total_tokens=Sum("total_tokens"),
+                total_cost=Sum("estimated_cost"),
+            )
+            .filter(entry_count__gte=k)
+        )
+
+
 class AIUsageLog(models.Model):
     """Token & cost tracking per LLM request.
 
     New in 0.6.0: quality_level column for direct cost-per-tier analytics
     without joins (ADR-095 OQ-2).
+    New in 0.11.x: privacy_mode column records the privacy policy applied at
+    write time (issue #8). See aifw.privacy for the pre-write transform.
     """
 
     action_type = models.ForeignKey(
@@ -319,6 +352,17 @@ class AIUsageLog(models.Model):
         blank=True,
         help_text="Arbitrary key/value context (pipeline stage, prompt version, etc.).",
     )
+    privacy_mode = models.CharField(
+        max_length=16,
+        default="full",
+        db_index=True,
+        help_text=(
+            "Privacy policy applied at write time (issue #8): "
+            "'full' (raw) | 'pseudonymous' (HMAC user_hash + topic) | "
+            "'anonymous' (tenant + day_bucket only). "
+            "Set automatically by aifw.privacy from AIFW_PRIVACY_MODE."
+        ),
+    )
     # ── NEW in 0.6.0 ───────────────────────────────────────────────────────────────
     quality_level = models.IntegerField(
         null=True,
@@ -339,6 +383,8 @@ class AIUsageLog(models.Model):
     success = models.BooleanField(default=True)
     error_message = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = AIUsageLogQuerySet.as_manager()
 
     class Meta:
         app_label = "aifw"
