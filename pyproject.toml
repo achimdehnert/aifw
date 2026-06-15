@@ -34,8 +34,15 @@ nl2sql = [
     # Activation: add "aifw.nl2sql" to INSTALLED_APPS (activates NL2SQLConfig + migrations).
     # pip install 'iil-aifw[nl2sql]' signals NL2SQL intent, no additional download weight.
 ]
+promptfw = [
+    "iil-promptfw>=0.7.0",
+]
 rag = [
     # Future: Schema-RAG via pgvector (ADR-009 Phase 1, Sprint 16+)
+    "pgvector>=0.3",
+]
+all = [
+    "iil-promptfw>=0.7.0",
     "pgvector>=0.3",
 ]
 dev = [
@@ -44,7 +51,7 @@ dev = [
     "pytest-asyncio>=0.23",
     "hatch",
     "ruff",
-    "iil-promptfw>=0.5.5",
+    "iil-promptfw>=0.7.0",
 ]
 
 [build-system]
