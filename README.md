@@ -111,6 +111,66 @@ result = sync_completion(
 )
 ```
 
+### Privacy-by-Design Logging (issue #8)
+
+`AIUsageLog` can pseudonymise or anonymise itself **at write time** — PII never
+reaches the database. Select the policy with one Django setting (DSGVO Art. 25 /
+Art. 5 Abs. 1 lit. c):
+
+```python
+# settings.py
+from aifw.constants import PrivacyMode
+AIFW_PRIVACY_MODE = PrivacyMode.PSEUDONYMOUS   # "full" (default) | "pseudonymous" | "anonymous"
+AIFW_PRIVACY_HMAC_SECRET = env("AIFW_PRIVACY_HMAC_SECRET")  # optional; falls back to SECRET_KEY
+```
+
+```python
+# Call site stays the same — the hook transforms the row before it is written:
+sync_completion(
+    "nl2sql", messages,
+    user=request.user,
+    tenant_id=user.organization_id,
+    metadata={"nl_question": question},
+)
+```
+
+| Mode | `user` | `metadata` |
+|---|---|---|
+| `full` *(default)* | stored raw (FK) | stored raw |
+| `pseudonymous` | `NULL` | `user_hash` = HMAC(user.pk); `nl_question` → `topic` |
+| `anonymous` | `NULL` | reduced to `{"day_bucket": "<ISO date>"}` (tenant + tokens survive) |
+
+The `privacy_mode` column records which policy was applied to each row.
+
+**Topic classification** is a plain callable — `aifw` never imports `iil-promptfw`.
+The built-in pseudonymous classifier emits a coarse placeholder (`"unclassified"`);
+wire a real classifier via a **custom hook**:
+
+```python
+# myapp/privacy.py
+from aifw.privacy import PseudonymousHook
+
+def my_hook():
+    from promptfw import classify_topic
+    return PseudonymousHook(topic_classifier=classify_topic)
+
+# settings.py
+AIFW_PRIVACY_HOOK = "myapp.privacy:my_hook"   # dotted path → PrivacyHook / subclass / factory
+```
+
+A custom hook receives the create-payload dict (keys: `user`, `tenant_id`,
+`metadata`, …) and returns it rewritten. If a configured non-`full` hook raises,
+logging **fails closed** — `user`/`metadata` are scrubbed rather than leaking PII.
+
+For supervisor-facing reports, `AIUsageLog.objects.aggregate_with_k_anonymity(
+*group_by, k=3)` returns only buckets with ≥ k entries (suppresses re-identifiable
+small groups).
+
+> **Default-shift roadmap:** the default stays `"full"` in the 0.11.x line to keep
+> existing audit views (bfagent, weltenhub, travel-beat) working unchanged. A shift
+> to `"pseudonymous"` as the default is planned for **0.12.0** as a documented
+> breaking change.
+
 ### Streaming (v0.4.0)
 
 ```python
@@ -131,7 +191,7 @@ def stream_story(request):
 | `LLMProvider` | Provider config (API key env var, base URL) |
 | `LLMModel` | Model config (max tokens, cost per million tokens) |
 | `AIActionType` | Action → model mapping; supports `quality_level` + `priority` dimensions |
-| `AIUsageLog` | Token/latency/cost tracking per request, with `tenant_id` + `metadata` |
+| `AIUsageLog` | Token/latency/cost tracking per request, with `tenant_id` + `metadata` + `privacy_mode` |
 | `TierQualityMapping` | Subscription tier → quality_level mapping (DB-driven) |
 
 ## NL2SQL (v0.7.0+)
@@ -225,6 +285,12 @@ python manage.py init_aifw_config
 |---|---|---|
 | `AIFW_LOCAL_CACHE_TTL` | `30` | Process-local cache TTL in seconds |
 | `AIFW_CACHE_TTL` | `600` | Shared cache TTL in seconds (Redis-backed) |
+| `AIFW_PRIVACY_MODE` | `full` | Privacy policy for AIUsageLog: `full` \| `pseudonymous` \| `anonymous` (issue #8) |
+| `AIFW_PRIVACY_HOOK` | — | Dotted path to a custom `PrivacyHook` (overrides `AIFW_PRIVACY_MODE`) |
+| `AIFW_PRIVACY_HMAC_SECRET` | `SECRET_KEY` | HMAC key for pseudonymous `user_hash` |
+
+> `AIFW_PRIVACY_*` are read from **Django settings** (not env), like Django's own
+> `SECRET_KEY`. The cache TTLs above are read from the process environment.
 
 No Django settings dict is required — all configuration is managed via Django Admin models.
 

@@ -1,5 +1,25 @@
 # Changelog — aifw
 
+## [0.11.4] — Unreleased
+
+### Added (Privacy-by-Design logging — issue #8)
+- **`AIUsageLog.privacy_mode`** column + `aifw.privacy` pre-write transform. PII is rewritten **before** the row is written, so it never reaches the DB. Three modes, selected via the `AIFW_PRIVACY_MODE` Django setting:
+  - `"full"` — legacy default, `user` FK + `metadata` stored raw (no behavioural change).
+  - `"pseudonymous"` — `user` dropped; `metadata["user_hash"]` = HMAC(user.pk); any `metadata["nl_question"]` replaced by a classified `metadata["topic"]`.
+  - `"anonymous"` — `user` dropped; `metadata` reduced to `{"day_bucket": <ISO date>}` (only `tenant_id` + `action_type` + token counts survive).
+- **Custom hooks** via `AIFW_PRIVACY_HOOK` (dotted path to a `PrivacyHook` instance, subclass, or factory). Topic classification is a plain injected callable — `aifw` never imports `iil-promptfw`. Built-in classifier emits a coarse `"unclassified"` placeholder.
+- **Fail-closed:** if a configured non-`full` hook raises, `user`/`metadata` are scrubbed (`{"privacy_error": True}`) rather than leaking raw PII.
+- **`AIUsageLog.objects.aggregate_with_k_anonymity(*group_by, k=3)`** — k-anonymity aggregation helper; suppresses buckets with fewer than `k` entries.
+- New exports: `aifw.PrivacyMode`, `aifw.PrivacyHook`, `aifw.apply_privacy`, `aifw.get_privacy_hook`.
+- Migration `0009_aiusagelog_privacy_mode` — column defaults to `'full'`, **non-blocking** for existing consumers (no data migration; every pre-existing row keeps legacy semantics).
+
+### Migration note (Consumer-facing)
+- **No breaking change in 0.11.x.** The default is `"full"`, so bfagent / weltenhub / travel-beat audit views that expect a `user` FK + raw `metadata` keep working unchanged.
+- **Default-shift decision:** the default will move to `"pseudonymous"` in **0.12.0** as a documented breaking change — `0.11→0.12` is the upgrade that flips behaviour, not `0.10→0.11`. Consumers relying on raw user logging must then set `AIFW_PRIVACY_MODE = "full"` explicitly.
+
+### Fixed
+- Removed an unused `from aifw.schema import LLMResult` import in `tests/test_service.py::FakeStack` that slipped past the ruff CI gate.
+
 ## [0.11.2] — 2026-06-14
 
 ### Fixed

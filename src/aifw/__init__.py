@@ -15,9 +15,10 @@ New in 0.6.0:
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
-from aifw.constants import QualityLevel
+from aifw.constants import PrivacyMode, QualityLevel
 from aifw.cost import cost_from_rates, estimate_cost
 from aifw.exceptions import AIFWError, ConfigurationError, OrchestrationError
+from aifw.privacy import PrivacyHook, apply_privacy, get_privacy_hook
 from aifw.schema import LLMResult, RenderedPromptProtocol, ToolCall
 from aifw.service import (
     check_action_code,
@@ -40,6 +41,11 @@ __all__ = [
     "__version__",
     # Constants
     "QualityLevel",
+    "PrivacyMode",
+    # Privacy (issue #8)
+    "PrivacyHook",
+    "apply_privacy",
+    "get_privacy_hook",
     # Cost estimation
     "cost_from_rates",
     "estimate_cost",

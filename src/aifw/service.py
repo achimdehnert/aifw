@@ -718,22 +718,32 @@ async def _log_usage(
                 model.output_cost_per_million,
             )
 
-        await sync_to_async(AIUsageLog.objects.create)(
-            action_type=action,
-            model_used=model,
-            user=user,
-            tenant_id=tenant_id,
-            object_id=object_id or "",
-            metadata=metadata or {},
-            quality_level=quality_level,
-            input_tokens=result.input_tokens,
-            output_tokens=result.output_tokens,
-            total_tokens=total_tokens,
-            estimated_cost=estimated_cost,
-            latency_ms=result.latency_ms,
-            success=result.success,
-            error_message=result.error or "",
+        # Privacy-by-Design (issue #8): the configured hook rewrites the payload
+        # before it is written, so PII (user FK, raw nl_question) never reaches
+        # the DB when AIFW_PRIVACY_MODE is pseudonymous/anonymous. Default 'full'
+        # is an identity transform — zero behavioural change for legacy consumers.
+        from aifw.privacy import apply_privacy
+
+        payload = apply_privacy(
+            {
+                "action_type": action,
+                "model_used": model,
+                "user": user,
+                "tenant_id": tenant_id,
+                "object_id": object_id or "",
+                "metadata": metadata or {},
+                "quality_level": quality_level,
+                "input_tokens": result.input_tokens,
+                "output_tokens": result.output_tokens,
+                "total_tokens": total_tokens,
+                "estimated_cost": estimated_cost,
+                "latency_ms": result.latency_ms,
+                "success": result.success,
+                "error_message": result.error or "",
+            }
         )
+
+        await sync_to_async(AIUsageLog.objects.create)(**payload)
     except Exception as exc:
         logger.warning("Failed to log usage: %s", exc)
 

@@ -42,3 +42,31 @@ class QualityLevel:
 
 #: Valid priority string values (NULL = catch-all, handled separately)
 VALID_PRIORITIES: frozenset[str] = frozenset({"fast", "balanced", "quality"})
+
+
+class PrivacyMode:
+    """Privacy policy applied to an AIUsageLog row at write time (issue #8).
+
+    Consumers select the active mode via the ``AIFW_PRIVACY_MODE`` Django
+    setting and use symbolic names rather than raw strings::
+
+        from aifw.constants import PrivacyMode
+        # settings.py
+        AIFW_PRIVACY_MODE = PrivacyMode.PSEUDONYMOUS
+    """
+
+    FULL: str = "full"                  # legacy default — user + metadata raw
+    PSEUDONYMOUS: str = "pseudonymous"  # HMAC user_hash + classified topic
+    ANONYMOUS: str = "anonymous"        # tenant + tokens + day_bucket only
+
+    #: All valid mode strings
+    ALL: tuple[str, ...] = (FULL, PSEUDONYMOUS, ANONYMOUS)
+
+    @classmethod
+    def is_valid(cls, value: str | None) -> bool:
+        """Return True if value is a valid privacy mode."""
+        return value in cls.ALL
+
+
+#: Valid privacy mode strings
+VALID_PRIVACY_MODES: frozenset[str] = frozenset(PrivacyMode.ALL)
