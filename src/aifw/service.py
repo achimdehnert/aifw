@@ -471,6 +471,8 @@ def _parse_tool_calls(message) -> list[ToolCall]:
 
 
 def _rendered_prompt_to_messages(rendered) -> list[dict[str, Any]]:
+    if hasattr(rendered, "to_messages"):
+        return rendered.to_messages()
     messages: list[dict[str, Any]] = []
     if rendered.system:
         messages.append({"role": "system", "content": rendered.system})
