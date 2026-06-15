@@ -460,3 +460,102 @@ def test_build_kwargs_applies_prompt_caching_for_anthropic():
     messages = [{"role": "system", "content": "SYS"}, {"role": "user", "content": "U"}]
     kwargs = _build_kwargs(config, messages, {})
     assert kwargs["messages"][0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+
+
+# ---------------------------------------------------------------------------
+# stack= / patterns= / context= one-liner API (Issue #3)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_should_accept_stack_patterns_context_instead_of_messages():
+    """completion() with stack+patterns renders internally and calls the LLM."""
+    from aifw.service import completion
+
+    class FakeStack:
+        def render_stack(self, patterns, context):
+            from aifw.schema import LLMResult
+            # Return a duck-typed RenderedPrompt
+            class R:
+                system = f"system:{context.get('topic','')}"
+                user = f"user:{','.join(patterns)}"
+                few_shot_messages = []
+                response_format = None
+            return R()
+
+    mock_response = MagicMock()
+    mock_response.choices[0].message.content = "ok"
+    mock_response.choices[0].message.tool_calls = None
+    mock_response.choices[0].finish_reason = "stop"
+    mock_response.model = "gpt-4o"
+    mock_response.usage.prompt_tokens = 5
+    mock_response.usage.completion_tokens = 3
+
+    config = {
+        "model_string": "gpt-4o",
+        "api_key": None,
+        "api_base": None,
+        "max_tokens": 500,
+        "temperature": 0.7,
+        "action_id": 1,
+        "model_id": 1,
+        "provider_name": "openai",
+        "model_name": "gpt-4o",
+    }
+    with patch("aifw.service.get_model_config", new=AsyncMock(return_value=config)), \
+         patch("aifw.service._log_usage", new=AsyncMock()), \
+         patch("litellm.acompletion", new=AsyncMock(return_value=mock_response)) as mock_llm:
+        result = await completion(
+            "story.writing",
+            stack=FakeStack(),
+            patterns=["system.base", "task.write"],
+            context={"topic": "dragons"},
+        )
+        assert result.success is True
+        assert result.content == "ok"
+        called_messages = mock_llm.call_args.kwargs["messages"]
+        assert any(m["role"] == "system" and "dragons" in m["content"] for m in called_messages)
+        assert any(m["role"] == "user" and "task.write" in m["content"] for m in called_messages)
+
+
+@pytest.mark.asyncio
+async def test_should_prefer_stack_over_messages_when_both_given():
+    """If both messages and stack are given, stack wins (renders fresh)."""
+    from aifw.service import completion
+
+    rendered_calls = []
+
+    class FakeStack:
+        def render_stack(self, patterns, context):
+            rendered_calls.append(patterns)
+            class R:
+                system = "from-stack"
+                user = "stack-user"
+                few_shot_messages = []
+                response_format = None
+            return R()
+
+    mock_response = MagicMock()
+    mock_response.choices[0].message.content = "ok"
+    mock_response.choices[0].message.tool_calls = None
+    mock_response.choices[0].finish_reason = "stop"
+    mock_response.model = "gpt-4o"
+    mock_response.usage.prompt_tokens = 5
+    mock_response.usage.completion_tokens = 3
+
+    config = {
+        "model_string": "gpt-4o", "api_key": None, "api_base": None,
+        "max_tokens": 500, "temperature": 0.7,
+        "action_id": 1, "model_id": 1, "provider_name": "openai", "model_name": "gpt-4o",
+    }
+    with patch("aifw.service.get_model_config", new=AsyncMock(return_value=config)), \
+         patch("aifw.service._log_usage", new=AsyncMock()), \
+         patch("litellm.acompletion", new=AsyncMock(return_value=mock_response)) as mock_llm:
+        await completion(
+            "x",
+            messages=[{"role": "user", "content": "ignored"}],
+            stack=FakeStack(),
+            patterns=["p1"],
+        )
+        assert rendered_calls == [["p1"]]
+        called_messages = mock_llm.call_args.kwargs["messages"]
+        assert any("from-stack" in m["content"] for m in called_messages)

@@ -744,7 +744,7 @@ async def _log_usage(
 
 async def completion(
     action_code: str,
-    messages: list[dict[str, Any]] | Any,
+    messages: list[dict[str, Any]] | Any | None = None,
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | None = "auto",
     user=None,
@@ -753,6 +753,9 @@ async def completion(
     metadata: dict[str, Any] | None = None,
     quality_level: int | None = None,
     priority: str | None = None,
+    stack: Any | None = None,
+    patterns: list[str] | None = None,
+    context: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> LLMResult:
     """Async LLM completion with quality-level routing.
@@ -765,7 +768,12 @@ async def completion(
         tenant_id: UUID for multi-tenant cost tracking.
         object_id: Opaque domain object reference.
         metadata: Arbitrary context dict.
+        stack: PromptStack instance — renders patterns into messages internally.
+        patterns: Template pattern list passed to stack.render_stack().
+        context: Template context dict passed to stack.render_stack().
     """
+    if stack is not None and patterns is not None:
+        messages = stack.render_stack(patterns, context or {})
     if isinstance(messages, RenderedPromptProtocol):
         prompt_overrides = _rendered_prompt_to_overrides(messages)
         for k, v in prompt_overrides.items():
@@ -903,7 +911,7 @@ def sync_completion_stream(
 
 def sync_completion(
     action_code: str,
-    messages: list[dict[str, Any]] | Any,
+    messages: list[dict[str, Any]] | Any | None = None,
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | None = "auto",
     user=None,
@@ -912,11 +920,15 @@ def sync_completion(
     metadata: dict[str, Any] | None = None,
     quality_level: int | None = None,
     priority: str | None = None,
+    stack: Any | None = None,
+    patterns: list[str] | None = None,
+    context: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> LLMResult:
     """Synchronous wrapper — safe in Django views, Celery tasks, management commands.
 
     New in 0.6.0: quality_level, priority parameters for routing.
+    New in 0.6.1: stack, patterns, context for one-liner PromptStack rendering.
     """
     coro = completion(
         action_code=action_code,
@@ -929,6 +941,9 @@ def sync_completion(
         metadata=metadata,
         quality_level=quality_level,
         priority=priority,
+        stack=stack,
+        patterns=patterns,
+        context=context,
         **overrides,
     )
     try:
@@ -941,7 +956,7 @@ def sync_completion(
 
 async def completion_with_fallback(
     action_code: str,
-    messages: list[dict[str, Any]] | Any,
+    messages: list[dict[str, Any]] | Any | None = None,
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | None = "auto",
     user=None,
@@ -950,6 +965,9 @@ async def completion_with_fallback(
     metadata: dict[str, Any] | None = None,
     quality_level: int | None = None,
     priority: str | None = None,
+    stack: Any | None = None,
+    patterns: list[str] | None = None,
+    context: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> LLMResult:
     """Completion with automatic fallback to the configured fallback model."""
@@ -964,6 +982,9 @@ async def completion_with_fallback(
         metadata=metadata,
         quality_level=quality_level,
         priority=priority,
+        stack=stack,
+        patterns=patterns,
+        context=context,
         **overrides,
     )
     if result.success:
@@ -1008,7 +1029,7 @@ async def completion_with_fallback(
 
 def sync_completion_with_fallback(
     action_code: str,
-    messages: list[dict[str, Any]] | Any,
+    messages: list[dict[str, Any]] | Any | None = None,
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | None = "auto",
     user=None,
@@ -1017,6 +1038,9 @@ def sync_completion_with_fallback(
     metadata: dict[str, Any] | None = None,
     quality_level: int | None = None,
     priority: str | None = None,
+    stack: Any | None = None,
+    patterns: list[str] | None = None,
+    context: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> LLMResult:
     """Synchronous wrapper for completion_with_fallback(). New in 0.6.0: quality_level, priority."""
@@ -1031,6 +1055,9 @@ def sync_completion_with_fallback(
         metadata=metadata,
         quality_level=quality_level,
         priority=priority,
+        stack=stack,
+        patterns=patterns,
+        context=context,
         **overrides,
     )
     try:
