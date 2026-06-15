@@ -1,6 +1,6 @@
 # Changelog — aifw
 
-## [0.11.4] — Unreleased
+## [0.11.4] — 2026-06-15
 
 ### Added (Privacy-by-Design logging — issue #8)
 - **`AIUsageLog.privacy_mode`** column + `aifw.privacy` pre-write transform. PII is rewritten **before** the row is written, so it never reaches the DB. Three modes, selected via the `AIFW_PRIVACY_MODE` Django setting:
