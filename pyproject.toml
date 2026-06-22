@@ -49,6 +49,7 @@ dev = [
     "pytest>=8.0",
     "pytest-django>=4.8",
     "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
     "hatch",
     "ruff",
     "iil-promptfw>=0.7.0",
@@ -66,6 +67,15 @@ sources = {"src" = ""}
 DJANGO_SETTINGS_MODULE = "tests.settings"
 asyncio_mode = "auto"
 pythonpath = ["src", "."]
+# Coverage gate ratchets from the current ~49%. Raise the floor as coverage
+# improves; never lower it silently.
+addopts = "--cov=aifw --cov-report=term-missing --cov-fail-under=45"
+
+[tool.coverage.run]
+source = ["aifw"]
+
+[tool.coverage.report]
+show_missing = true
 
 [tool.ruff]
 line-length = 100
