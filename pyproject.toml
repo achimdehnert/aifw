@@ -15,7 +15,7 @@ classifiers = [
     "Framework :: Django :: 5.2",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -69,6 +69,8 @@ pythonpath = ["src", "."]
 
 [tool.ruff]
 line-length = 100
+# Consistent with requires-python = ">=3.12".
+target-version = "py312"
 # Django migrations are auto-generated; linting them fights the generator.
 extend-exclude = ["**/migrations/**"]
 
