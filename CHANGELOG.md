@@ -1,5 +1,11 @@
 # Changelog — aifw
 
+## [0.11.5] — 2026-06-23
+
+### Fixed (issue #24)
+- **Modell/Migration-Mismatch behoben.** Die Modelle deklarierten Indizes/Feld-Stände, die `0009` nicht abbildete → `makemigrations --check` schlug bei jedem Konsumenten fehl, und zwei Indizes wurden nie angelegt.
+- Neue Migration `0010_alter_aiusagelog_privacy_mode_and_more`: erstellt `idx_aiaction_code_active` (`AIActionType.code, is_active`) + `aifw_usage__quality_993f55_idx` (`AIUsageLog.quality_level, created_at`) und gleicht die Feld-States (`privacy_mode`, `LLMModel.provider`, `TierQualityMapping.id/tier`) an die Modelle an. Reine Schema-Konsistenz, keine Datenmigration.
+
 ## [0.11.4] — 2026-06-15
 
 ### Added (Privacy-by-Design logging — issue #8)
