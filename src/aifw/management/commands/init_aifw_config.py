@@ -204,9 +204,7 @@ class Command(BaseCommand):
             model.is_default = False
             model.save(update_fields=["is_active", "is_default"])
             self.stdout.write(
-                self.style.WARNING(
-                    f"Deactivated dead model: {model.provider.name}/{model.name}"
-                )
+                self.style.WARNING(f"Deactivated dead model: {model.provider.name}/{model.name}")
             )
 
     def _seed_nl2sql_action(self):
@@ -223,9 +221,7 @@ class Command(BaseCommand):
         ).first()
         if default_model is None:
             self.stdout.write(
-                self.style.WARNING(
-                    "  Skipped AIActionType nl2sql: groq default model not found"
-                )
+                self.style.WARNING("  Skipped AIActionType nl2sql: groq default model not found")
             )
             return
         obj, created = AIActionType.objects.get_or_create(
@@ -261,8 +257,7 @@ class Command(BaseCommand):
             from promptfw.contrib.django.models import PromptTemplate
         except ImportError:
             self.stdout.write(
-                "promptfw not installed — skipped template seed "
-                f"({NL2SQL_PROMPT_KEY})."
+                f"promptfw not installed — skipped template seed ({NL2SQL_PROMPT_KEY})."
             )
             return
 
@@ -296,12 +291,8 @@ class Command(BaseCommand):
                 },
             )
         except Exception as e:  # e.g. promptfw app not in INSTALLED_APPS/migrated
-            self.stdout.write(
-                self.style.WARNING(f"  Skipped promptfw template seed: {e}")
-            )
+            self.stdout.write(self.style.WARNING(f"  Skipped promptfw template seed: {e}"))
             return
         self.stdout.write(
-            f"{'Created' if created else 'Exists'}: promptfw template "
-            f"{NL2SQL_PROMPT_KEY}"
+            f"{'Created' if created else 'Exists'}: promptfw template {NL2SQL_PROMPT_KEY}"
         )
-

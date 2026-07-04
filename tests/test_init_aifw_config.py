@@ -1,4 +1,5 @@
 """Seed command `init_aifw_config` — Groq-first policy, idempotency, cleanup."""
+
 from io import StringIO
 
 import pytest
@@ -38,9 +39,7 @@ def test_should_seed_cerebras_free_tier_model():
 def test_should_wire_nl2sql_action_groq_default_with_anthropic_fallback():
     _run_seed()
 
-    action = AIActionType.objects.get(
-        code="nl2sql", quality_level=None, priority=None
-    )
+    action = AIActionType.objects.get(code="nl2sql", quality_level=None, priority=None)
     assert action.default_model.provider.name == "groq"
     assert action.default_model.name == "llama-3.3-70b-versatile"
     assert action.fallback_model.provider.name == "anthropic"

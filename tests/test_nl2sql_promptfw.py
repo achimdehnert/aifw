@@ -6,6 +6,7 @@ part of ``[dev]``) and skip cleanly otherwise. The fallback test forces the
 "promptfw not installed" path via ``sys.modules`` regardless of the
 environment.
 """
+
 import sys
 
 import pytest
@@ -25,9 +26,7 @@ CTX = {
 
 
 def _expected_builtin() -> str:
-    return _builtin_system_prompt(
-        CTX["blocked_tables"], CTX["max_rows"], CTX["schema_xml"]
-    )
+    return _builtin_system_prompt(CTX["blocked_tables"], CTX["max_rows"], CTX["schema_xml"])
 
 
 def test_should_fallback_to_builtin_prompt_without_promptfw(monkeypatch):
