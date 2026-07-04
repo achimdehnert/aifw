@@ -13,6 +13,7 @@ Pipeline:
   8. Format result + auto-detect chart type
   9. Return NL2SQLResult
 """
+
 from __future__ import annotations
 
 import logging
@@ -30,18 +31,42 @@ from aifw.nl2sql.results import (
 logger = logging.getLogger(__name__)
 
 ALWAYS_BLOCKED = {
-    "auth_user", "auth_password", "auth_token",
-    "django_session", "authtoken_token",
-    "oauth2_provider_accesstoken", "res_users_keys",
+    "auth_user",
+    "auth_password",
+    "auth_token",
+    "django_session",
+    "authtoken_token",
+    "oauth2_provider_accesstoken",
+    "res_users_keys",
     "ir_config_parameter",
 }
 
-FORBIDDEN_SQL_KEYWORDS = frozenset([
-    "DROP", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE",
-    "COPY", "EXECUTE", "DO", "IMPORT", "LOAD", "VACUUM",
-    "CLUSTER", "REINDEX", "COMMENT", "SECURITY", "OWNER",
-    "INSERT", "UPDATE", "DELETE", "MERGE", "UPSERT",
-])
+FORBIDDEN_SQL_KEYWORDS = frozenset(
+    [
+        "DROP",
+        "TRUNCATE",
+        "ALTER",
+        "CREATE",
+        "GRANT",
+        "REVOKE",
+        "COPY",
+        "EXECUTE",
+        "DO",
+        "IMPORT",
+        "LOAD",
+        "VACUUM",
+        "CLUSTER",
+        "REINDEX",
+        "COMMENT",
+        "SECURITY",
+        "OWNER",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "MERGE",
+        "UPSERT",
+    ]
+)
 
 SYSTEM_PROMPT_TEMPLATE = """Du bist ein präziser SQL-Generator für PostgreSQL.
 
@@ -104,7 +129,7 @@ def _extract_sql(raw: str) -> str | None:
         return raw
     match = re.search(r"(WITH\s+\w|SELECT\s+)", raw, re.IGNORECASE)
     if match:
-        return raw[match.start():].strip()
+        return raw[match.start() :].strip()
     return None
 
 
@@ -285,9 +310,7 @@ def _execute_query(
             if is_postgres and timeout_seconds > 0:
                 # statement_timeout via SET LOCAL only takes effect inside a
                 # transaction — under autocommit it was previously a silent no-op.
-                cursor.execute(
-                    f"SET LOCAL statement_timeout = {timeout_seconds * 1000}"
-                )
+                cursor.execute(f"SET LOCAL statement_timeout = {timeout_seconds * 1000}")
             cursor.execute(limited_sql)
             return cursor.fetchall(), (cursor.description or [])
 
@@ -350,12 +373,14 @@ class NL2SQLEngine:
         # Einmalig instanziieren — nicht pro _run()-Aufruf
         if clarification_domains:
             from aifw.nl2sql.clarification import ClarificationDetector
+
             self._clarifier: Any = ClarificationDetector(domains=clarification_domains)
         else:
             self._clarifier = None
         # Semantic Bridge — opt-in, non-breaking
         if enable_semantic:
             from aifw.nl2sql.semantic import SemanticBridge
+
             self._semantic: Any = SemanticBridge.from_schema_source(source_code)
         else:
             self._semantic = None
@@ -364,6 +389,7 @@ class NL2SQLEngine:
         if self._source is not None:
             return self._source
         from aifw.nl2sql.models import SchemaSource
+
         source = SchemaSource.objects.filter(code=self.source_code, is_active=True).first()
         if source is None:
             raise ValueError(
@@ -376,9 +402,11 @@ class NL2SQLEngine:
     def _load_examples(self, source) -> list:
         try:
             from aifw.nl2sql.models import NL2SQLExample
+
             return list(
-                NL2SQLExample.objects.filter(source=source, is_active=True)
-                .order_by("difficulty", "id")[:15]
+                NL2SQLExample.objects.filter(source=source, is_active=True).order_by(
+                    "difficulty", "id"
+                )[:15]
             )
         except Exception:
             return []
@@ -394,6 +422,7 @@ class NL2SQLEngine:
     def _capture_feedback(self, source, question: str, bad_sql: str, error_msg: str) -> int | None:
         try:
             from aifw.nl2sql.models import NL2SQLFeedback
+
             fb = NL2SQLFeedback.objects.create(
                 source=source,
                 question=question,
@@ -407,7 +436,11 @@ class NL2SQLEngine:
             return None
 
     def _auto_promote_correction(
-        self, feedback_pk: int | None, source, question: str, corrected_sql: str,
+        self,
+        feedback_pk: int | None,
+        source,
+        question: str,
+        corrected_sql: str,
     ) -> None:
         """When retry succeeds, store corrected SQL and auto-promote to example."""
         if feedback_pk is None:
@@ -421,7 +454,8 @@ class NL2SQLEngine:
             fb.save(update_fields=["corrected_sql", "promoted"])
 
             exists = NL2SQLExample.objects.filter(
-                source=source, question=question,
+                source=source,
+                question=question,
             ).exists()
             if not exists:
                 NL2SQLExample.objects.create(
@@ -435,7 +469,8 @@ class NL2SQLEngine:
                 )
                 logger.info(
                     "NL2SQL auto-promoted: '%s' → Example (from feedback #%d)",
-                    question[:60], feedback_pk,
+                    question[:60],
+                    feedback_pk,
                 )
         except Exception as e:
             logger.warning("Auto-promote fehlgeschlagen: %s", e)
@@ -448,8 +483,7 @@ class NL2SQLEngine:
             from aifw.nl2sql.models import NL2SQLFeedback
 
             patterns = (
-                NL2SQLFeedback.objects
-                .filter(source=source, promoted=False)
+                NL2SQLFeedback.objects.filter(source=source, promoted=False)
                 .values("error_type", "error_message")
                 .annotate(count=Count("id"))
                 .filter(count__gte=2)
@@ -490,7 +524,11 @@ class NL2SQLEngine:
         if self._clarifier is not None and retry_count == 0:
             clarity = self._clarifier.analyze(question, conversation_history=conversation_history)
             if clarity.is_ambiguous:
-                logger.info("NL2SQL Clarification benötigt für: %s (confidence=%.2f)", question, clarity.confidence)
+                logger.info(
+                    "NL2SQL Clarification benötigt für: %s (confidence=%.2f)",
+                    question,
+                    clarity.confidence,
+                )
                 return NL2SQLResult(
                     success=False,
                     needs_clarification=True,
@@ -515,17 +553,23 @@ class NL2SQLEngine:
                 if hints.domain:
                     logger.debug(
                         "NL2SQL Semantic: domain=%s conf=%.0f%% matches=%d",
-                        hints.domain, hints.domain_confidence * 100,
+                        hints.domain,
+                        hints.domain_confidence * 100,
                         len(hints.glossary_matches),
                     )
             except Exception as e:
                 logger.warning("SemanticBridge Fehler (non-fatal): %s", e)
 
-        system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
-            blocked_tables=", ".join(sorted(blocked)),
-            max_rows=source.max_rows,
-            schema_xml=source.schema_xml,
-        ) + few_shot + antipatterns + semantic_block
+        system_prompt = (
+            SYSTEM_PROMPT_TEMPLATE.format(
+                blocked_tables=", ".join(sorted(blocked)),
+                max_rows=source.max_rows,
+                schema_xml=source.schema_xml,
+            )
+            + few_shot
+            + antipatterns
+            + semantic_block
+        )
 
         messages = [{"role": "system", "content": system_prompt}]
         for h in conversation_history:
@@ -561,7 +605,9 @@ class NL2SQLEngine:
         if raw_sql is None:
             if "CANNOT_ANSWER" in llm_result.content.upper():
                 self._capture_feedback(
-                    source, question, "CANNOT_ANSWER",
+                    source,
+                    question,
+                    "CANNOT_ANSWER",
                     f"LLM konnte keine SQL-Antwort generieren. Frage evtl. außerhalb Schema-Scope. "
                     f"Semantic hints: {semantic_block[:200] if semantic_block else 'keine'}",
                 )
@@ -575,7 +621,9 @@ class NL2SQLEngine:
                     generation=generation,
                 )
             self._capture_feedback(
-                source, question, llm_result.content[:500],
+                source,
+                question,
+                llm_result.content[:500],
                 f"LLM hat kein gültiges SQL generiert sondern: {llm_result.content[:200]}",
             )
             hint, suggestions = _build_user_hint("NL2SQLGenerationError", "", question)
@@ -590,7 +638,9 @@ class NL2SQLEngine:
 
         validation_error = _validate_sql(raw_sql, blocked)
         if validation_error:
-            hint, suggestions = _build_user_hint("NL2SQLValidationError", validation_error, question)
+            hint, suggestions = _build_user_hint(
+                "NL2SQLValidationError", validation_error, question
+            )
             return NL2SQLResult(
                 success=False,
                 sql=raw_sql,
@@ -618,17 +668,22 @@ class NL2SQLEngine:
                 logger.info("NL2SQL Retry mit Fehler-Kontext für: %s", question)
                 retry_history = conversation_history + [
                     {"role": "assistant", "content": raw_sql},
-                    {"role": "user", "content": (
-                        f"Das SQL hat einen Fehler: {err_str}\n"
-                        "Bitte korrigiere das SQL. "
-                        "Wichtig: Verwende PostgreSQL-Syntax (INTERVAL '7 days' nicht INTERVAL 7 DAY). "
-                        "Prüfe die Join-Hints im Schema sorgfältig "
-                        "und verwende nur Felder die dort explizit aufgelistet sind."
-                    )},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Das SQL hat einen Fehler: {err_str}\n"
+                            "Bitte korrigiere das SQL. "
+                            "Wichtig: Verwende PostgreSQL-Syntax (INTERVAL '7 days' nicht INTERVAL 7 DAY). "
+                            "Prüfe die Join-Hints im Schema sorgfältig "
+                            "und verwende nur Felder die dort explizit aufgelistet sind."
+                        ),
+                    },
                 ]
                 return self._run(
-                    question, retry_history,
-                    retry_count=1, _first_feedback_pk=feedback_pk,
+                    question,
+                    retry_history,
+                    retry_count=1,
+                    _first_feedback_pk=feedback_pk,
                 )
 
             hint, suggestions = _build_user_hint("NL2SQLExecutionError", err_str, question)
@@ -662,7 +717,10 @@ class NL2SQLEngine:
 
         if retry_count > 0 and _first_feedback_pk is not None:
             self._auto_promote_correction(
-                _first_feedback_pk, source, question, raw_sql,
+                _first_feedback_pk,
+                source,
+                question,
+                raw_sql,
             )
 
         return NL2SQLResult(

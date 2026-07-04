@@ -3,6 +3,7 @@ aifw/constants.py — Shared constants for quality-level routing.
 
 ADR-095 §5.1 — QualityLevel scale definition.
 """
+
 from __future__ import annotations
 
 
@@ -14,9 +15,9 @@ class QualityLevel:
         quality = QualityLevel.PREMIUM  # 8
     """
 
-    ECONOMY: int = 2   # 1–3 band centre
+    ECONOMY: int = 2  # 1–3 band centre
     BALANCED: int = 5  # 4–6 band centre
-    PREMIUM: int = 8   # 7–9 band centre
+    PREMIUM: int = 8  # 7–9 band centre
 
     #: All valid values (1–9 inclusive)
     ALL: tuple[int, ...] = (1, 2, 3, 4, 5, 6, 7, 8, 9)
@@ -55,9 +56,9 @@ class PrivacyMode:
         AIFW_PRIVACY_MODE = PrivacyMode.PSEUDONYMOUS
     """
 
-    FULL: str = "full"                  # legacy default — user + metadata raw
+    FULL: str = "full"  # legacy default — user + metadata raw
     PSEUDONYMOUS: str = "pseudonymous"  # HMAC user_hash + classified topic
-    ANONYMOUS: str = "anonymous"        # tenant + tokens + day_bucket only
+    ANONYMOUS: str = "anonymous"  # tenant + tokens + day_bucket only
 
     #: All valid mode strings
     ALL: tuple[str, ...] = (FULL, PSEUDONYMOUS, ANONYMOUS)

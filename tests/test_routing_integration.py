@@ -4,6 +4,7 @@ wired into the completion path (not just the isolated _lookup_cascade).
 Guards the 0.10.3 fix where completion()/*_stream() called the legacy
 get_model_config(action_code) and silently ignored quality_level + priority.
 """
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -25,12 +26,14 @@ def provider(transactional_db):
     # via sync_to_async, i.e. from a worker thread. Under the default atomic
     # test wrapper that read deadlocks on SQLite shared-cache ("table is locked").
     from aifw.models import LLMProvider
+
     return LLMProvider.objects.create(name="openai", api_key_env_var="OPENAI_API_KEY")
 
 
 @pytest.fixture()
 def models(provider):
     from aifw.models import LLMModel
+
     economy = LLMModel.objects.create(name="gpt-4o-mini", provider=provider, is_active=True)
     premium = LLMModel.objects.create(name="gpt-4o", provider=provider, is_active=True)
     return economy, premium
@@ -38,6 +41,7 @@ def models(provider):
 
 def _action(code, model, quality_level=None, priority=None):
     from aifw.models import AIActionType
+
     return AIActionType.objects.create(
         code=code,
         name=f"{code} ql={quality_level} prio={priority}",
@@ -62,12 +66,13 @@ def _fake_response(content="ok"):
 
 # ── #1: routing actually reaches litellm ──────────────────────────────────────
 
+
 @pytest.mark.django_db(transaction=True)
 def test_should_route_quality_level_to_premium_model(models):
     """completion(quality_level=8) must reach the ql=8 row's model, not catch-all."""
     economy, premium = models
     _action("story", economy, quality_level=None, priority=None)  # catch-all
-    _action("story", premium, quality_level=8, priority=None)     # premium
+    _action("story", premium, quality_level=8, priority=None)  # premium
 
     captured = {}
 
@@ -77,11 +82,11 @@ def test_should_route_quality_level_to_premium_model(models):
 
     from aifw.service import sync_completion
 
-    with patch("litellm.acompletion", side_effect=_capture), \
-         patch("aifw.service._log_usage", new=AsyncMock()):
-        result = sync_completion(
-            "story", [{"role": "user", "content": "hi"}], quality_level=8
-        )
+    with (
+        patch("litellm.acompletion", side_effect=_capture),
+        patch("aifw.service._log_usage", new=AsyncMock()),
+    ):
+        result = sync_completion("story", [{"role": "user", "content": "hi"}], quality_level=8)
 
     assert result.success is True
     assert captured["model"] == "gpt-4o"  # premium row, NOT the catch-all gpt-4o-mini
@@ -102,8 +107,10 @@ def test_should_fall_back_to_catch_all_without_quality_level(models):
 
     from aifw.service import sync_completion
 
-    with patch("litellm.acompletion", side_effect=_capture), \
-         patch("aifw.service._log_usage", new=AsyncMock()):
+    with (
+        patch("litellm.acompletion", side_effect=_capture),
+        patch("aifw.service._log_usage", new=AsyncMock()),
+    ):
         result = sync_completion("story", [{"role": "user", "content": "hi"}])
 
     assert result.success is True
@@ -114,8 +121,8 @@ def test_should_fall_back_to_catch_all_without_quality_level(models):
 def test_should_route_priority_to_matching_row(models):
     """completion(priority='quality') reaches the prio-specific row."""
     economy, premium = models
-    _action("draft", economy, quality_level=None, priority=None)        # catch-all
-    _action("draft", premium, quality_level=None, priority="quality")   # prio-only
+    _action("draft", economy, quality_level=None, priority=None)  # catch-all
+    _action("draft", premium, quality_level=None, priority="quality")  # prio-only
 
     captured = {}
 
@@ -125,14 +132,17 @@ def test_should_route_priority_to_matching_row(models):
 
     from aifw.service import sync_completion
 
-    with patch("litellm.acompletion", side_effect=_capture), \
-         patch("aifw.service._log_usage", new=AsyncMock()):
+    with (
+        patch("litellm.acompletion", side_effect=_capture),
+        patch("aifw.service._log_usage", new=AsyncMock()),
+    ):
         sync_completion("draft", [{"role": "user", "content": "hi"}], priority="quality")
 
     assert captured["model"] == "gpt-4o"
 
 
 # ── #1b: invalidation flushes the completion-config cache ─────────────────────
+
 
 def test_should_invalidate_completion_config_cache_for_code():
     """invalidate_action_cache(code) must flush 'aifw:cfg:' completion keys,
@@ -153,6 +163,7 @@ def test_should_invalidate_completion_config_cache_for_code():
 
 
 # ── #2: retry is applied to the completion call ───────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_should_retry_transient_error_then_succeed():
@@ -177,9 +188,11 @@ async def test_should_retry_transient_error_then_succeed():
         return _fake_response()
 
     # Skip tenacity's exponential backoff sleeps to keep the test fast.
-    with patch("tenacity.nap.sleep", lambda *_a, **_k: None), \
-         patch("asyncio.sleep", new=AsyncMock()), \
-         patch("litellm.acompletion", side_effect=_flaky):
+    with (
+        patch("tenacity.nap.sleep", lambda *_a, **_k: None),
+        patch("asyncio.sleep", new=AsyncMock()),
+        patch("litellm.acompletion", side_effect=_flaky),
+    ):
         response = await _acompletion_with_retry(model="gpt-4o", messages=[])
 
     assert calls["n"] == 3  # 2 transient failures, succeeded on the 3rd attempt

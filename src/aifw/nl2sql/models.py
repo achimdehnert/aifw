@@ -5,6 +5,7 @@ SchemaSource:    Named DB target + XML schema for NL2SQL generation.
 NL2SQLExample:   Verified Q→SQL pairs injected as few-shot into LLM prompt.
 NL2SQLFeedback:  Auto-captured SQL errors + manual corrections pipeline.
 """
+
 from __future__ import annotations
 
 from django.db import models
@@ -36,8 +37,11 @@ class SchemaSource(models.Model):
 
     def get_blocked_tables_set(self) -> set[str]:
         always_blocked = {
-            "auth_user", "auth_token", "django_session",
-            "authtoken_token", "oauth2_provider_accesstoken",
+            "auth_user",
+            "auth_token",
+            "django_session",
+            "authtoken_token",
+            "oauth2_provider_accesstoken",
             "res_users_keys",
         }
         custom = {t.strip().lower() for t in self.blocked_tables.split(",") if t.strip()}
@@ -116,14 +120,14 @@ class NL2SQLFeedback(models.Model):
     """
 
     ERROR_TYPE_CHOICES = [
-        ("schema_error",     "Schema-Fehler (halluziniertes Feld)"),
-        ("table_error",      "Tabellen-Fehler (halluzinierte Tabelle)"),
-        ("join_error",       "Join-Fehler (falscher Join-Pfad)"),
-        ("syntax_error",     "Syntax-Fehler"),
-        ("cannot_answer",    "CANNOT_ANSWER (Frage außerhalb Schema-Scope)"),
+        ("schema_error", "Schema-Fehler (halluziniertes Feld)"),
+        ("table_error", "Tabellen-Fehler (halluzinierte Tabelle)"),
+        ("join_error", "Join-Fehler (falscher Join-Pfad)"),
+        ("syntax_error", "Syntax-Fehler"),
+        ("cannot_answer", "CANNOT_ANSWER (Frage außerhalb Schema-Scope)"),
         ("generation_error", "Generierungs-Fehler (kein valides SQL)"),
-        ("timeout",          "Timeout"),
-        ("unknown",          "Unbekannt"),
+        ("timeout", "Timeout"),
+        ("unknown", "Unbekannt"),
     ]
 
     source = models.ForeignKey(

@@ -3,6 +3,7 @@ Tests for aifw.nl2sql.semantic — SemanticBridge.
 
 Django-free: tests only the semantic logic, no DB required.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -21,8 +22,8 @@ def bridge() -> SemanticBridge:
 
 # ── Glossary Matching ────────────────────────────────────────────────────────
 
-class TestGlossaryMatching:
 
+class TestGlossaryMatching:
     def test_kaputt_maps_to_breakdown(self, bridge: SemanticBridge):
         hints = bridge.analyze("Welche Maschinen sind kaputt?")
         terms = [g.term for g in hints.glossary_matches]
@@ -78,8 +79,8 @@ class TestGlossaryMatching:
 
 # ── Domain Detection ─────────────────────────────────────────────────────────
 
-class TestDomainDetection:
 
+class TestDomainDetection:
     def test_casting_domain(self, bridge: SemanticBridge):
         hints = bridge.analyze("Welche Maschinen sind in Störung?")
         assert hints.domain == "casting"
@@ -105,8 +106,8 @@ class TestDomainDetection:
 
 # ── Temporal Parsing ─────────────────────────────────────────────────────────
 
-class TestTemporalParsing:
 
+class TestTemporalParsing:
     def test_diese_woche(self, bridge: SemanticBridge):
         hints = bridge.analyze("Aufträge diese Woche")
         assert hints.temporal is not None
@@ -135,8 +136,8 @@ class TestTemporalParsing:
 
 # ── Prompt Block ─────────────────────────────────────────────────────────────
 
-class TestPromptBlock:
 
+class TestPromptBlock:
     def test_prompt_block_contains_domain(self, bridge: SemanticBridge):
         hints = bridge.analyze("Maschinen in Störung")
         block = hints.to_prompt_block()
@@ -156,16 +157,18 @@ class TestPromptBlock:
 
 # ── Add Entry (runtime extensibility) ────────────────────────────────────────
 
-class TestAddEntry:
 
+class TestAddEntry:
     def test_add_entry_at_runtime(self, bridge: SemanticBridge):
-        bridge.add_entry(GlossaryEntry(
-            term="rohmaterial",
-            target_column="base_material_id",
-            target_table="casting_alloy",
-            sql_hint="FK → base_material",
-            category="synonym",
-        ))
+        bridge.add_entry(
+            GlossaryEntry(
+                term="rohmaterial",
+                target_column="base_material_id",
+                target_table="casting_alloy",
+                sql_hint="FK → base_material",
+                category="synonym",
+            )
+        )
         hints = bridge.analyze("Welches Rohmaterial wird verwendet?")
         terms = [g.term for g in hints.glossary_matches]
         assert "rohmaterial" in terms

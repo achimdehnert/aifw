@@ -6,6 +6,7 @@ import pytest
 @pytest.fixture()
 def provider(db):
     from aifw.models import LLMProvider
+
     return LLMProvider.objects.create(
         name="openai",
         api_key_env_var="OPENAI_API_KEY",
@@ -15,6 +16,7 @@ def provider(db):
 @pytest.fixture()
 def model(provider):
     from aifw.models import LLMModel
+
     return LLMModel.objects.create(
         name="gpt-4o",
         provider=provider,
@@ -23,6 +25,7 @@ def model(provider):
 
 
 # ── get_quality_level_for_tier ────────────────────────────────────────────────
+
 
 @pytest.mark.django_db
 def test_should_return_quality_level_for_known_tier():
@@ -67,6 +70,7 @@ def test_should_use_cache_on_second_call(monkeypatch):
 
 
 # ── TierQualityMapping model integrity ───────────────────────────────────────
+
 
 @pytest.mark.django_db
 def test_should_enforce_unique_tier():

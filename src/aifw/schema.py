@@ -79,11 +79,13 @@ class LLMResult:
         """
         try:
             from promptfw.parsing import extract_json
+
             return extract_json(self.content)
         except ImportError:
             pass
         import json
         import re
+
         text = self.content.strip()
         match = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", text)
         if match:
@@ -106,6 +108,7 @@ class LLMResult:
             premise = result.field("Premise", default="")
         """
         import re
+
         pattern = re.compile(
             r"(?:^|\n)\s*\*{0,2}" + re.escape(name) + r"(?:\*{0,2})?:(?:\*{0,2})?[ \t]*(.+)",
             re.IGNORECASE,

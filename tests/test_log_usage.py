@@ -78,6 +78,7 @@ def success_result():
 # _log_usage DB write tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
 async def test_should_write_tenant_id_to_usage_log(config, success_result):

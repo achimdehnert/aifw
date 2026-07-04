@@ -18,8 +18,14 @@ class LLMModelAdmin(admin.ModelAdmin):
 @admin.register(AIActionType)
 class AIActionTypeAdmin(admin.ModelAdmin):
     list_display = [
-        "code", "name", "quality_level", "priority",
-        "default_model", "fallback_model", "prompt_template_key", "is_active",
+        "code",
+        "name",
+        "quality_level",
+        "priority",
+        "default_model",
+        "fallback_model",
+        "prompt_template_key",
+        "is_active",
     ]
     list_filter = ["is_active", "quality_level", "priority"]
     search_fields = ["code", "name"]
@@ -36,13 +42,30 @@ class TierQualityMappingAdmin(admin.ModelAdmin):
 @admin.register(AIUsageLog)
 class AIUsageLogAdmin(admin.ModelAdmin):
     list_display = [
-        "action_type", "model_used", "quality_level", "privacy_mode", "user",
-        "total_tokens", "estimated_cost", "latency_ms", "success", "created_at",
+        "action_type",
+        "model_used",
+        "quality_level",
+        "privacy_mode",
+        "user",
+        "total_tokens",
+        "estimated_cost",
+        "latency_ms",
+        "success",
+        "created_at",
     ]
     list_filter = ["success", "privacy_mode", "quality_level", "action_type", "model_used"]
     readonly_fields = [
-        "action_type", "model_used", "user", "quality_level", "privacy_mode",
-        "input_tokens", "output_tokens", "total_tokens",
-        "estimated_cost", "latency_ms", "success",
-        "error_message", "created_at",
+        "action_type",
+        "model_used",
+        "user",
+        "quality_level",
+        "privacy_mode",
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "estimated_cost",
+        "latency_ms",
+        "success",
+        "error_message",
+        "created_at",
     ]

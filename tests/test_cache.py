@@ -1,4 +1,5 @@
 """Tests for aifw cache invalidation (ADR-097 G-097-02/03)."""
+
 from unittest.mock import MagicMock, patch
 
 from aifw.service import (
@@ -13,6 +14,7 @@ from aifw.service import (
 )
 
 # ── Cache key helpers ─────────────────────────────────────────────────────────
+
 
 def test_should_build_action_cache_key_with_both_params():
     key = _action_cache_key("write", 5, "quality")
@@ -39,6 +41,7 @@ def test_should_generate_all_keys_for_code():
 
 # ── Local cache get/set ───────────────────────────────────────────────────────
 
+
 def test_should_store_and_retrieve_from_local_cache():
     _LOCAL_CACHE.clear()
     _cache_set("test:key", {"value": 42})
@@ -54,6 +57,7 @@ def test_should_return_none_for_missing_cache_key():
 
 
 # ── invalidate_action_cache ───────────────────────────────────────────────────
+
 
 def test_should_clear_specific_action_from_local_cache():
     _LOCAL_CACHE.clear()
@@ -90,6 +94,7 @@ def test_should_call_delete_many_not_delete_loop():
 
 
 # ── invalidate_tier_cache ─────────────────────────────────────────────────────
+
 
 def test_should_clear_specific_tier_from_local_cache():
     _LOCAL_CACHE.clear()

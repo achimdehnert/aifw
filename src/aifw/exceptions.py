@@ -3,6 +3,7 @@ aifw/exceptions.py — Exception hierarchy for aifw.
 
 ADR-097 §4 — Exception hierarchy.
 """
+
 from __future__ import annotations
 
 

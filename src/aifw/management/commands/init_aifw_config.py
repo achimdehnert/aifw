@@ -93,20 +93,15 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         for p in PROVIDERS:
             defaults = {k: v for k, v in p.items() if k != "name"}
-            obj, created = LLMProvider.objects.get_or_create(
-                name=p["name"], defaults=defaults
-            )
-            self.stdout.write(
-                f"{'Created' if created else 'Exists'}: Provider {obj.display_name}"
-            )
+            obj, created = LLMProvider.objects.get_or_create(name=p["name"], defaults=defaults)
+            self.stdout.write(f"{'Created' if created else 'Exists'}: Provider {obj.display_name}")
 
         for m in MODELS:
             provider = LLMProvider.objects.filter(name=m["provider"]).first()
             if not provider:
                 self.stdout.write(
                     self.style.WARNING(
-                        f"  Skipped model {m['name']}: "
-                        f"provider '{m['provider']}' not found"
+                        f"  Skipped model {m['name']}: provider '{m['provider']}' not found"
                     )
                 )
                 continue
@@ -115,9 +110,7 @@ class Command(BaseCommand):
             obj, created = LLMModel.objects.get_or_create(
                 provider=provider, name=m["name"], defaults=defaults
             )
-            self.stdout.write(
-                f"{'Created' if created else 'Exists'}: Model {obj.display_name}"
-            )
+            self.stdout.write(f"{'Created' if created else 'Exists'}: Model {obj.display_name}")
 
         self.stdout.write(
             self.style.SUCCESS(

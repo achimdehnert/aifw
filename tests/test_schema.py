@@ -41,6 +41,7 @@ def test_llm_result_with_tool_calls():
 
 # ── LLMResult.as_json() ───────────────────────────────────────────────────
 
+
 def test_should_parse_plain_json_from_content():
     """as_json() extracts dict from plain JSON content."""
     result = LLMResult(success=True, content='{"premise": "A hero rises", "themes": ["hope"]}')
@@ -91,6 +92,7 @@ def test_should_parse_nested_json():
 
 
 # ── LLMResult.field() ─────────────────────────────────────────────────────
+
 
 def test_should_extract_bold_markdown_field():
     """field() extracts **Field:** value pattern."""

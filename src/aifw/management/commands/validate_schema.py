@@ -11,6 +11,7 @@ Usage:
     python manage.py validate_schema --source odoo_mfg
     python manage.py validate_schema --fix-hints
 """
+
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
@@ -20,6 +21,7 @@ from django.core.management.base import BaseCommand
 
 def _get_db_columns(db_alias: str, table_name: str) -> set[str]:
     from django.db import connections
+
     conn = connections[db_alias]
     with conn.cursor() as cur:
         cur.execute(
@@ -32,6 +34,7 @@ def _get_db_columns(db_alias: str, table_name: str) -> set[str]:
 
 def _get_db_tables(db_alias: str) -> set[str]:
     from django.db import connections
+
     conn = connections[db_alias]
     with conn.cursor() as cur:
         cur.execute(
@@ -67,9 +70,9 @@ class Command(BaseCommand):
         total_warnings = 0
 
         for source in qs:
-            self.stdout.write(f"\n{'='*60}")
+            self.stdout.write(f"\n{'=' * 60}")
             self.stdout.write(f"Source: {source.code} (DB: {source.db_alias})")
-            self.stdout.write("="*60)
+            self.stdout.write("=" * 60)
 
             errors = []
             warnings = []
@@ -114,9 +117,7 @@ class Command(BaseCommand):
                     if not col_name:
                         continue
                     if col_name not in db_cols:
-                        errors.append(
-                            f"Spalte '{table_name}.{col_name}' existiert NICHT in DB"
-                        )
+                        errors.append(f"Spalte '{table_name}.{col_name}' existiert NICHT in DB")
                         self.stdout.write(
                             self.style.ERROR(f"    ✗ Spalte '{col_name}' — nicht in DB")
                         )
@@ -134,7 +135,7 @@ class Command(BaseCommand):
             total_errors += len(errors)
             total_warnings += len(warnings)
 
-        self.stdout.write(f"\n{'='*60}")
+        self.stdout.write(f"\n{'=' * 60}")
         if total_errors == 0:
             self.stdout.write(
                 self.style.SUCCESS(
