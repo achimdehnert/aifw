@@ -6,6 +6,8 @@ Pipeline:
   1. Load SchemaSource from DB
   2. Load NL2SQLExample few-shot pairs for this source
   3. Build LLM prompt (schema XML + few-shot examples + conversation history + question)
+     — System-Prompt via promptfw-Template `nl2sql.system` (ADR-146) wenn verfügbar,
+       sonst builtin SYSTEM_PROMPT_TEMPLATE (identisches Verhalten ohne promptfw)
   4. Call sync_completion("nl2sql") via aifw service layer
   5. Extract + validate SQL from LLM response
   6. Execute SQL against target DB alias
@@ -117,6 +119,61 @@ BEWÄHRTE BEISPIELE — diese SQL-Muster sind verifiziert und korrekt.
 Verwende sie als Vorlage für ähnliche Fragen:
 
 """
+
+# promptfw action_code des NL2SQL-System-Prompts (ADR-146).
+# `init_aifw_config` seedet unter diesem Key ein DB-verwaltetes Template.
+PROMPTFW_ACTION_CODE = "nl2sql.system"
+
+
+def _builtin_system_prompt(blocked_tables: str, max_rows: int, schema_xml: str) -> str:
+    """Render the builtin (hardcoded) NL2SQL system prompt."""
+    return SYSTEM_PROMPT_TEMPLATE.format(
+        blocked_tables=blocked_tables,
+        max_rows=max_rows,
+        schema_xml=schema_xml,
+    )
+
+
+def _resolve_system_prompt(
+    question: str, blocked_tables: str, max_rows: int, schema_xml: str
+) -> str:
+    """Resolve the NL2SQL system prompt — promptfw first, builtin fallback.
+
+    Resolution order (ADR-146):
+      1. promptfw DB template ``nl2sql.system`` (via render_prompt), when
+         ``iil-promptfw`` (extra ``[promptfw]``) is installed AND the
+         template exists.
+      2. Builtin ``SYSTEM_PROMPT_TEMPLATE`` — identical behaviour for
+         installations without promptfw (soft import, same pattern as
+         ``aifw.schema.extract_json``). Never a hard break.
+    """
+    try:
+        from promptfw.contrib.django.resolution import render_prompt
+    except ImportError:
+        return _builtin_system_prompt(blocked_tables, max_rows, schema_xml)
+
+    try:
+        messages = render_prompt(
+            PROMPTFW_ACTION_CODE,
+            blocked_tables=blocked_tables,
+            max_rows=max_rows,
+            schema_xml=schema_xml,
+            question=question,
+        )
+    except Exception as exc:
+        # PromptNotFoundError, fehlende Tabelle (App nicht migriert),
+        # kaputtes Template — alles non-fatal: builtin Fallback.
+        logger.debug(
+            "promptfw-Aufloesung fuer %r nicht verfuegbar (%s) — builtin Fallback",
+            PROMPTFW_ACTION_CODE,
+            exc,
+        )
+        return _builtin_system_prompt(blocked_tables, max_rows, schema_xml)
+
+    for msg in messages:
+        if msg.get("role") == "system" and msg.get("content"):
+            return msg["content"]
+    return _builtin_system_prompt(blocked_tables, max_rows, schema_xml)
 
 
 def _extract_sql(raw: str) -> str | None:
@@ -561,7 +618,8 @@ class NL2SQLEngine:
                 logger.warning("SemanticBridge Fehler (non-fatal): %s", e)
 
         system_prompt = (
-            SYSTEM_PROMPT_TEMPLATE.format(
+            _resolve_system_prompt(
+                question=question,
                 blocked_tables=", ".join(sorted(blocked)),
                 max_rows=source.max_rows,
                 schema_xml=source.schema_xml,

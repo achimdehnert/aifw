@@ -183,6 +183,7 @@ class Command(BaseCommand):
 
         self._deactivate_dead_models()
         self._seed_nl2sql_action()
+        self._seed_promptfw_template()
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -248,5 +249,59 @@ class Command(BaseCommand):
         self.stdout.write(
             f"{'Created' if created else 'Exists'}: AIActionType {obj.code} "
             f"(default={obj.default_model}, fallback={obj.fallback_model})"
+        )
+
+    def _seed_promptfw_template(self):
+        """Seed the NL2SQL system prompt as promptfw template (ADR-146).
+
+        Soft dependency: silently skipped when iil-promptfw (extra
+        ``[promptfw]``) is not installed or its Django app is not migrated.
+        """
+        try:
+            from promptfw.contrib.django.models import PromptTemplate
+        except ImportError:
+            self.stdout.write(
+                "promptfw not installed — skipped template seed "
+                f"({NL2SQL_PROMPT_KEY})."
+            )
+            return
+
+        from aifw.nl2sql.engine import SYSTEM_PROMPT_TEMPLATE
+
+        # Same content as the builtin fallback, converted to Jinja2 syntax.
+        system_template = (
+            SYSTEM_PROMPT_TEMPLATE.replace("{blocked_tables}", "{{ blocked_tables }}")
+            .replace("{max_rows}", "{{ max_rows }}")
+            .replace("{schema_xml}", "{{ schema_xml }}")
+        )
+        try:
+            obj, created = PromptTemplate.objects.get_or_create(
+                action_code=NL2SQL_PROMPT_KEY,
+                version=1,
+                defaults={
+                    "name": "NL2SQL System Prompt",
+                    "description": (
+                        "System prompt of aifw.nl2sql.engine (ADR-146). "
+                        "Content mirrors the builtin SYSTEM_PROMPT_TEMPLATE."
+                    ),
+                    "system_template": system_template,
+                    "user_template": "{{ question }}",
+                    "variables_schema": {
+                        "blocked_tables": {"type": "string", "required": True},
+                        "max_rows": {"type": "integer", "required": True},
+                        "schema_xml": {"type": "string", "required": True},
+                        "question": {"type": "string", "required": True},
+                    },
+                    "domain": "nl2sql",
+                },
+            )
+        except Exception as e:  # e.g. promptfw app not in INSTALLED_APPS/migrated
+            self.stdout.write(
+                self.style.WARNING(f"  Skipped promptfw template seed: {e}")
+            )
+            return
+        self.stdout.write(
+            f"{'Created' if created else 'Exists'}: promptfw template "
+            f"{NL2SQL_PROMPT_KEY}"
         )
 
