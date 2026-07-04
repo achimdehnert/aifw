@@ -1,5 +1,21 @@
 # Changelog — aifw
 
+## [Unreleased]
+
+### Added (NL2X-Fleet-Audit WP6 — platform#913)
+- **NL2SQL-System-Prompt via promptfw (ADR-146).** `NL2SQLEngine` löst den System-Prompt jetzt zuerst über das DB-verwaltete promptfw-Template `nl2sql.system` auf (`promptfw.contrib.django.resolution.render_prompt`). Fallback ist das bisherige hardcodierte `SYSTEM_PROMPT_TEMPLATE` — Installationen **ohne** das `[promptfw]`-Extra behalten byte-identisches Verhalten (Soft-Import, gleiches Muster wie `aifw.schema.extract_json`; kein harter Bruch, keine neue Pflicht-Dependency).
+- **`init_aifw_config` seedet das promptfw-Template** `nl2sql.system` (Jinja2-Fassung des builtin Prompts), wenn promptfw installiert und migriert ist; sonst sauberer Skip.
+- **`init_aifw_config` seedet den framework-eigenen `nl2sql`-AIActionType** (catch-all): `default_model` = `groq/llama-3.3-70b-versatile`, `fallback_model` = `anthropic/claude-haiku-4-5`, `prompt_template_key` = `nl2sql.system`, `temperature` = 0.05.
+
+### Changed (Seed policy-konform — Org-LLM-Policy „free tier first")
+- **Provider-Seed:** neu `groq` (`GROQ_API_KEY`) und `cerebras` (`CEREBRAS_API_KEY`); `google` → `gemini` (`GEMINI_API_KEY`) — litellm routet Google AI Studio nur über den `gemini/`-Prefix, der bisherige Seed erzeugte den ungültigen Modell-String `google/gemini/gemini-1.5-pro`.
+- **Modell-Seed nach Policy-Tiers:** `groq/llama-3.3-70b-versatile` (Tier 1a, neuer **globaler Default**), `cerebras/gpt-oss-120b` (Tier 1a), `claude-haiku-4-5` (Tier 2), `claude-sonnet-5` (Tier 3). Der globale Default wandert damit von Anthropic Sonnet auf Groq free-tier.
+- **Tote/veraltete Modell-IDs bereinigt** (Abgleich `mcp-hub/docs/known-dead-models.txt` + litellm-Registry): `claude-3-5-sonnet-20241022` → `claude-sonnet-5` (retired 2025-10-28), `claude-3-haiku-20240307` → `claude-haiku-4-5` (retired 2026-04-19), `gemini/gemini-1.5-pro` → `gemini-2.5-pro`, `gpt-4o`/`gpt-4o-mini` (veraltet, noch bedient) → `gpt-5.1`/`gpt-5-mini`.
+- **Bestands-DBs:** die drei retired IDs werden beim Seed-Lauf deaktiviert (`is_active=False`, `is_default=False`) statt gelöscht — Usage-Historie bleibt erhalten, Routing fällt über den bestehenden Mechanismus auf aktive Modelle zurück.
+
+### Migration note (Consumer-facing)
+- Kein Breaking Change: bestehende Zeilen werden nie überschrieben (get_or_create); nur upstream-retired Modelle werden deaktiviert. Wer explizit auf eine retired ID routete, bekam upstream ohnehin 404 — nach dem Seed-Lauf greift stattdessen `fallback_model` bzw. der neue globale Default.
+
 ## [0.11.5] — 2026-06-23
 
 ### Fixed (issue #24)
