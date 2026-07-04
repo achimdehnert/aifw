@@ -20,6 +20,7 @@ New in 0.4.0:
 - sync_completion_stream with queue.Queue (true streaming)
 - RenderedPromptProtocol replaces duck-typing
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -83,6 +84,7 @@ def _local_set(key: str, value: Any) -> None:
 def _shared_get(key: str) -> Any | None:
     try:
         from django.core.cache import cache
+
         return cache.get(key)
     except Exception:
         return None
@@ -91,6 +93,7 @@ def _shared_get(key: str) -> Any | None:
 def _shared_set(key: str, value: Any) -> None:
     try:
         from django.core.cache import cache
+
         cache.set(key, value, timeout=_SHARED_TTL)
     except Exception:
         pass  # graceful — local cache is sufficient
@@ -99,6 +102,7 @@ def _shared_set(key: str, value: Any) -> None:
 def _shared_delete_many(keys: list[str]) -> None:
     try:
         from django.core.cache import cache
+
         cache.delete_many(keys)
     except Exception:
         pass
@@ -125,6 +129,7 @@ def _cache_set(key: str, value: Any) -> None:
 # Cache key helpers
 # ---------------------------------------------------------------------------
 
+
 def _action_cache_key(code: str, quality_level: int | None, priority: str | None) -> str:
     ql = str(quality_level) if quality_level is not None else "_"
     prio = priority if priority is not None else "_"
@@ -150,9 +155,7 @@ def _tier_cache_key(tier: str) -> str:
     return f"aifw:tier:{tier}"
 
 
-def _completion_cache_key(
-    code: str, quality_level: int | None, priority: str | None
-) -> str:
+def _completion_cache_key(code: str, quality_level: int | None, priority: str | None) -> str:
     """Cache key for the resolved completion config (distinct from the
     ActionConfig key used by get_action_config to avoid a shape collision)."""
     ql = str(quality_level) if quality_level is not None else "_"
@@ -163,6 +166,7 @@ def _completion_cache_key(
 # ---------------------------------------------------------------------------
 # Cache invalidation (public API)
 # ---------------------------------------------------------------------------
+
 
 def invalidate_action_cache(action_code: str | None = None) -> None:
     """Invalidate action config cache.
@@ -179,6 +183,7 @@ def invalidate_action_cache(action_code: str | None = None) -> None:
         _LOCAL_CACHE.clear()
         try:
             from django.core.cache import cache
+
             cache.clear()
         except Exception:
             pass
@@ -210,6 +215,7 @@ def invalidate_config_cache(action_code: str | None = None) -> None:
 # Core lookup: 4-step cascade (ADR-097 §5.1)
 # ---------------------------------------------------------------------------
 
+
 def _lookup_cascade(
     code: str,
     quality_level: int | None,
@@ -233,32 +239,24 @@ def _lookup_cascade(
 
     # Step 1: exact match
     if quality_level is not None and priority is not None:
-        row = base_qs.filter(
-            quality_level=quality_level, priority=priority
-        ).first()
+        row = base_qs.filter(quality_level=quality_level, priority=priority).first()
         if row:
             return row
 
     # Step 2: quality_level only
     if quality_level is not None:
-        row = base_qs.filter(
-            quality_level=quality_level, priority__isnull=True
-        ).first()
+        row = base_qs.filter(quality_level=quality_level, priority__isnull=True).first()
         if row:
             return row
 
     # Step 3: priority only
     if priority is not None:
-        row = base_qs.filter(
-            quality_level__isnull=True, priority=priority
-        ).first()
+        row = base_qs.filter(quality_level__isnull=True, priority=priority).first()
         if row:
             return row
 
     # Step 4: catch-all
-    row = base_qs.filter(
-        quality_level__isnull=True, priority__isnull=True
-    ).first()
+    row = base_qs.filter(quality_level__isnull=True, priority__isnull=True).first()
     if row:
         return row
 
@@ -279,6 +277,7 @@ def _to_action_config(action: "AIActionType") -> ActionConfig:  # type: ignore[n
             f"Check default_model and fallback_model configuration."
         )
     from aifw.service import _build_model_string
+
     ms = _build_model_string(model.provider.name, model.name)
     return ActionConfig(
         action_id=action.id,
@@ -298,6 +297,7 @@ def _to_action_config(action: "AIActionType") -> ActionConfig:  # type: ignore[n
 # ---------------------------------------------------------------------------
 # Public: get_action_config (ADR-097 §5.2)
 # ---------------------------------------------------------------------------
+
 
 def get_action_config(
     action_code: str,
@@ -335,6 +335,7 @@ def get_action_config(
 # Public: get_quality_level_for_tier (ADR-097 §5.3)
 # ---------------------------------------------------------------------------
 
+
 def get_quality_level_for_tier(tier: str | None) -> int:
     """Resolve quality_level for a subscription tier name.
 
@@ -355,9 +356,8 @@ def get_quality_level_for_tier(tier: str | None) -> int:
 
     try:
         from aifw.models import TierQualityMapping
-        mapping = TierQualityMapping.objects.filter(
-            tier=tier, is_active=True
-        ).first()
+
+        mapping = TierQualityMapping.objects.filter(tier=tier, is_active=True).first()
         result = mapping.quality_level if mapping else QualityLevel.BALANCED
     except Exception as exc:
         logger.warning("get_quality_level_for_tier(%r) DB error: %s", tier, exc)
@@ -388,9 +388,7 @@ try:
             Timeout,
         )
 
-        _TRANSIENT_ERRORS = (
-            RateLimitError, ServiceUnavailableError, Timeout, APIConnectionError
-        )
+        _TRANSIENT_ERRORS = (RateLimitError, ServiceUnavailableError, Timeout, APIConnectionError)
     except ImportError:
         _TRANSIENT_ERRORS = (Exception,)  # type: ignore[assignment]
 
@@ -422,6 +420,7 @@ async def _acompletion_with_retry(**kwargs: Any) -> Any:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _build_model_string(provider_name: str, model_name: str) -> str:
     provider = provider_name.lower()
@@ -492,9 +491,7 @@ def _rendered_prompt_to_overrides(rendered) -> dict[str, Any]:
     elif rf == "json_schema":
         schema = getattr(rendered, "output_schema", None)
         if schema:
-            overrides["response_format"] = {
-                "type": "json_schema", "json_schema": schema
-            }
+            overrides["response_format"] = {"type": "json_schema", "json_schema": schema}
         else:
             overrides["response_format"] = {"type": "json_object"}
     return overrides
@@ -565,12 +562,11 @@ def _build_kwargs(
 # Legacy: get_model_config (backwards-compatible wrapper)
 # ---------------------------------------------------------------------------
 
+
 def _with_api_key(cfg: dict[str, Any]) -> dict[str, Any]:
     """Return a copy of a cached config with the api_key resolved fresh."""
     cfg = dict(cfg)
-    cfg["api_key"] = _resolve_api_key(
-        cfg.get("provider_name", ""), cfg.get("api_key_env_var", "")
-    )
+    cfg["api_key"] = _resolve_api_key(cfg.get("provider_name", ""), cfg.get("api_key_env_var", ""))
     return cfg
 
 
@@ -613,9 +609,7 @@ async def get_model_config(
             model = await sync_to_async(action.get_model)()
             if model and model.provider:
                 cfg = {
-                    "model_string": _build_model_string(
-                        model.provider.name, model.name
-                    ),
+                    "model_string": _build_model_string(model.provider.name, model.name),
                     "api_base": model.provider.base_url or None,
                     "api_key_env_var": model.provider.api_key_env_var or "",
                     "max_tokens": action.max_tokens,
@@ -630,9 +624,11 @@ async def get_model_config(
 
         # No routed row for this code → global default model (legacy 0.5.x).
         global_default = await sync_to_async(
-            lambda: LLMModel.objects.select_related("provider")
-            .filter(is_default=True, is_active=True)
-            .first()
+            lambda: (
+                LLMModel.objects.select_related("provider")
+                .filter(is_default=True, is_active=True)
+                .first()
+            )
         )()
 
         if global_default and global_default.provider:
@@ -672,6 +668,7 @@ async def get_model_config(
 # Internal usage logger
 # ---------------------------------------------------------------------------
 
+
 async def _log_usage(
     config: dict[str, Any],
     result: LLMResult,
@@ -694,9 +691,7 @@ async def _log_usage(
                 lambda: AIActionType.objects.filter(id=action_id).first()
             )()
         if model_id:
-            model = await sync_to_async(
-                lambda: LLMModel.objects.filter(id=model_id).first()
-            )()
+            model = await sync_to_async(lambda: LLMModel.objects.filter(id=model_id).first())()
 
         if isinstance(tenant_id, str):
             try:
@@ -711,6 +706,7 @@ async def _log_usage(
         estimated_cost = 0.0
         if model:
             from aifw.cost import cost_from_rates
+
             estimated_cost = cost_from_rates(
                 result.input_tokens,
                 result.output_tokens,
@@ -751,6 +747,7 @@ async def _log_usage(
 # ---------------------------------------------------------------------------
 # Core async completion
 # ---------------------------------------------------------------------------
+
 
 async def completion(
     action_code: str,
@@ -1004,9 +1001,11 @@ async def completion_with_fallback(
         from aifw.models import AIActionType
 
         action = await sync_to_async(
-            lambda: AIActionType.objects.select_related("fallback_model__provider")
-            .filter(code=action_code, is_active=True)
-            .first()
+            lambda: (
+                AIActionType.objects.select_related("fallback_model__provider")
+                .filter(code=action_code, is_active=True)
+                .first()
+            )
         )()
         if action and action.fallback_model and action.fallback_model.is_active:
             fb = action.fallback_model
@@ -1082,9 +1081,8 @@ def check_action_code(action_code: str) -> bool:
     """Return True if action_code has at least one active row (any quality_level/priority)."""
     try:
         from aifw.models import AIActionType
-        exists = AIActionType.objects.filter(
-            code=action_code, is_active=True
-        ).exists()
+
+        exists = AIActionType.objects.filter(code=action_code, is_active=True).exists()
         if not exists:
             logger.warning(
                 "aifw: action_code '%s' not found — run 'manage.py init_aifw_config'",

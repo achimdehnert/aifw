@@ -96,6 +96,7 @@ def test_usage_log_estimated_cost(action_type, model):
 @pytest.mark.django_db
 def test_usage_log_tenant_id_stored(action_type, model):
     import uuid
+
     tid = uuid.uuid4()
     log = AIUsageLog.objects.create(
         action_type=action_type,

@@ -7,6 +7,7 @@ they assert the guard is *wired* (the statements issued, in order). The actual
 "cannot execute in a read-only transaction" rejection is a PostgreSQL behaviour
 and is not reproducible against the sqlite test DB.
 """
+
 from unittest.mock import patch
 
 from aifw.nl2sql.engine import _execute_query
@@ -42,8 +43,7 @@ class _FakeConn:
 
 def test_should_enforce_read_only_transaction_on_postgres():
     conn = _FakeConn("postgresql")
-    with patch("django.db.connections", {"analytics": conn}), \
-         patch("django.db.transaction") as tx:
+    with patch("django.db.connections", {"analytics": conn}), patch("django.db.transaction") as tx:
         _execute_query("SELECT 1", db_alias="analytics", max_rows=100, timeout_seconds=5)
 
     stmts = conn._cursor.executed
@@ -57,8 +57,7 @@ def test_should_enforce_read_only_transaction_on_postgres():
 def test_should_skip_read_only_when_already_in_atomic_block():
     """Cannot set READ ONLY mid-transaction; degrade to regex-only (logged)."""
     conn = _FakeConn("postgresql", in_atomic_block=True)
-    with patch("django.db.connections", {"analytics": conn}), \
-         patch("django.db.transaction") as tx:
+    with patch("django.db.connections", {"analytics": conn}), patch("django.db.transaction") as tx:
         _execute_query("SELECT 1", db_alias="analytics", max_rows=100, timeout_seconds=5)
 
     stmts = conn._cursor.executed
@@ -68,8 +67,7 @@ def test_should_skip_read_only_when_already_in_atomic_block():
 
 def test_should_not_issue_postgres_only_statements_on_sqlite():
     conn = _FakeConn("sqlite")
-    with patch("django.db.connections", {"analytics": conn}), \
-         patch("django.db.transaction") as tx:
+    with patch("django.db.connections", {"analytics": conn}), patch("django.db.transaction") as tx:
         _execute_query("SELECT 1", db_alias="analytics", max_rows=100, timeout_seconds=5)
 
     stmts = conn._cursor.executed

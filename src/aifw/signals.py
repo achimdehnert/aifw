@@ -8,6 +8,7 @@ LLMModel, LLMProvider, or TierQualityMapping records are saved or deleted.
 For multi-worker Gunicorn deployments: configure CACHES to use Redis in the
 consumer app. The process-local cache provides an additional 30s buffer.
 """
+
 from __future__ import annotations
 
 from django.db.models.signals import post_delete, post_save

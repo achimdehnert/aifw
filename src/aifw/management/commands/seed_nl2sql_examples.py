@@ -9,6 +9,7 @@ Usage:
     python manage.py seed_nl2sql_examples --source odoo_mfg
     python manage.py seed_nl2sql_examples --clear
 """
+
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand
@@ -20,10 +21,10 @@ EXAMPLES = {
             "question": "Welche Maschinen sind gerade in Störung?",
             "sql": (
                 "SELECT\n"
-                "  name        AS \"Maschine\",\n"
-                "  code        AS \"Code\",\n"
-                "  hall        AS \"Halle\",\n"
-                "  state       AS \"Status\"\n"
+                '  name        AS "Maschine",\n'
+                '  code        AS "Code",\n'
+                '  hall        AS "Halle",\n'
+                '  state       AS "Status"\n'
                 "FROM casting_machine\n"
                 "WHERE state = 'breakdown' AND active = true\n"
                 "ORDER BY name"
@@ -35,12 +36,12 @@ EXAMPLES = {
             "question": "Wie viele Maschinen sind in welchem Status?",
             "sql": (
                 "SELECT\n"
-                "  state       AS \"Status\",\n"
-                "  COUNT(*)    AS \"Anzahl Maschinen\"\n"
+                '  state       AS "Status",\n'
+                '  COUNT(*)    AS "Anzahl Maschinen"\n'
                 "FROM casting_machine\n"
                 "WHERE active = true\n"
                 "GROUP BY state\n"
-                "ORDER BY \"Anzahl Maschinen\" DESC"
+                'ORDER BY "Anzahl Maschinen" DESC'
             ),
             "domain": "machines",
             "difficulty": 1,
@@ -49,15 +50,15 @@ EXAMPLES = {
             "question": "Top 5 Maschinen nach aktiven Aufträgen",
             "sql": (
                 "SELECT\n"
-                "  cm.name                         AS \"Maschine\",\n"
-                "  COUNT(DISTINCT col.order_id)    AS \"Aktive Aufträge\"\n"
+                '  cm.name                         AS "Maschine",\n'
+                '  COUNT(DISTINCT col.order_id)    AS "Aktive Aufträge"\n'
                 "FROM casting_order_line col\n"
                 "JOIN casting_machine cm ON cm.id = col.machine_id\n"
                 "JOIN casting_order co ON co.id = col.order_id\n"
                 "WHERE co.state IN ('confirmed', 'in_production')\n"
                 "  AND cm.active = true\n"
                 "GROUP BY cm.name\n"
-                "ORDER BY \"Aktive Aufträge\" DESC\n"
+                'ORDER BY "Aktive Aufträge" DESC\n'
                 "LIMIT 5"
             ),
             "domain": "machines",
@@ -67,14 +68,14 @@ EXAMPLES = {
             "question": "Welche Maschine hat die meiste Wartung?",
             "sql": (
                 "SELECT\n"
-                "  cm.name     AS \"Maschine\",\n"
-                "  cm.state    AS \"Status\",\n"
-                "  COUNT(*)    AS \"Wartungsvorgänge\"\n"
+                '  cm.name     AS "Maschine",\n'
+                '  cm.state    AS "Status",\n'
+                '  COUNT(*)    AS "Wartungsvorgänge"\n'
                 "FROM casting_order_line col\n"
                 "JOIN casting_machine cm ON cm.id = col.machine_id\n"
                 "WHERE cm.state = 'maintenance'\n"
                 "GROUP BY cm.name, cm.state\n"
-                "ORDER BY \"Wartungsvorgänge\" DESC\n"
+                'ORDER BY "Wartungsvorgänge" DESC\n'
                 "LIMIT 1"
             ),
             "domain": "machines",
@@ -85,11 +86,11 @@ EXAMPLES = {
             "question": "Wie viele Aufträge gibt es je Status?",
             "sql": (
                 "SELECT\n"
-                "  state       AS \"Status\",\n"
-                "  COUNT(*)    AS \"Anzahl Aufträge\"\n"
+                '  state       AS "Status",\n'
+                '  COUNT(*)    AS "Anzahl Aufträge"\n'
                 "FROM casting_order\n"
                 "GROUP BY state\n"
-                "ORDER BY \"Anzahl Aufträge\" DESC"
+                'ORDER BY "Anzahl Aufträge" DESC'
             ),
             "domain": "casting",
             "difficulty": 1,
@@ -98,11 +99,11 @@ EXAMPLES = {
             "question": "Welche Aufträge sind aktuell in Produktion?",
             "sql": (
                 "SELECT\n"
-                "  name                AS \"Auftrag\",\n"
-                "  state               AS \"Status\",\n"
-                "  date_planned        AS \"Geplant bis\",\n"
-                "  total_pieces        AS \"Stückzahl\",\n"
-                "  total_scrap_pct     AS \"Ausschuss %\"\n"
+                '  name                AS "Auftrag",\n'
+                '  state               AS "Status",\n'
+                '  date_planned        AS "Geplant bis",\n'
+                '  total_pieces        AS "Stückzahl",\n'
+                '  total_scrap_pct     AS "Ausschuss %"\n'
                 "FROM casting_order\n"
                 "WHERE state = 'in_production'\n"
                 "ORDER BY date_planned\n"
@@ -115,11 +116,11 @@ EXAMPLES = {
             "question": "Zeige Aufträge mit Ausschuss über 5%",
             "sql": (
                 "SELECT\n"
-                "  name                AS \"Auftrag\",\n"
-                "  state               AS \"Status\",\n"
-                "  total_scrap_pct     AS \"Ausschuss %\",\n"
-                "  total_pieces        AS \"Stückzahl\",\n"
-                "  date_planned        AS \"Geplant bis\"\n"
+                '  name                AS "Auftrag",\n'
+                '  state               AS "Status",\n'
+                '  total_scrap_pct     AS "Ausschuss %",\n'
+                '  total_pieces        AS "Stückzahl",\n'
+                '  date_planned        AS "Geplant bis"\n'
                 "FROM casting_order\n"
                 "WHERE total_scrap_pct > 5\n"
                 "ORDER BY total_scrap_pct DESC\n"
@@ -132,10 +133,10 @@ EXAMPLES = {
             "question": "Welche Aufträge sind diese Woche fällig?",
             "sql": (
                 "SELECT\n"
-                "  name                AS \"Auftrag\",\n"
-                "  state               AS \"Status\",\n"
-                "  date_planned        AS \"Fällig am\",\n"
-                "  total_pieces        AS \"Stückzahl\"\n"
+                '  name                AS "Auftrag",\n'
+                '  state               AS "Status",\n'
+                '  date_planned        AS "Fällig am",\n'
+                '  total_pieces        AS "Stückzahl"\n'
                 "FROM casting_order\n"
                 "WHERE date_planned >= date_trunc('week', CURRENT_DATE)\n"
                 "  AND date_planned < date_trunc('week', CURRENT_DATE) + INTERVAL '7 days'\n"
@@ -152,11 +153,11 @@ EXAMPLES = {
                 "SELECT\n"
                 "  COUNT(*) FILTER (WHERE result = 'pass')  AS \"Bestanden\",\n"
                 "  COUNT(*) FILTER (WHERE result = 'fail')  AS \"Nicht bestanden\",\n"
-                "  COUNT(*)                                  AS \"Gesamt\",\n"
+                '  COUNT(*)                                  AS "Gesamt",\n'
                 "  ROUND(\n"
                 "    100.0 * COUNT(*) FILTER (WHERE result = 'pass')\n"
                 "    / NULLIF(COUNT(*), 0), 1\n"
-                "  )                                         AS \"Bestehensrate %\"\n"
+                '  )                                         AS "Bestehensrate %"\n'
                 "FROM casting_quality_check"
             ),
             "domain": "casting",
@@ -167,10 +168,10 @@ EXAMPLES = {
             "question": "Welche Einkaufsbestellungen sind überfällig?",
             "sql": (
                 "SELECT\n"
-                "  name            AS \"Bestellung\",\n"
-                "  state           AS \"Status\",\n"
-                "  date_expected   AS \"Erwartet am\",\n"
-                "  total_amount    AS \"Betrag EUR\"\n"
+                '  name            AS "Bestellung",\n'
+                '  state           AS "Status",\n'
+                '  date_expected   AS "Erwartet am",\n'
+                '  total_amount    AS "Betrag EUR"\n'
                 "FROM scm_purchase_order\n"
                 "WHERE date_expected < CURRENT_DATE\n"
                 "  AND state NOT IN ('received', 'cancelled', 'done')\n"
@@ -184,11 +185,11 @@ EXAMPLES = {
             "question": "Wie viele SCM-Aufträge laufen aktuell?",
             "sql": (
                 "SELECT\n"
-                "  state       AS \"Status\",\n"
-                "  COUNT(*)    AS \"Anzahl Aufträge\"\n"
+                '  state       AS "Status",\n'
+                '  COUNT(*)    AS "Anzahl Aufträge"\n'
                 "FROM scm_production_order\n"
                 "GROUP BY state\n"
-                "ORDER BY \"Anzahl Aufträge\" DESC"
+                'ORDER BY "Anzahl Aufträge" DESC'
             ),
             "domain": "scm",
             "difficulty": 1,
@@ -241,9 +242,7 @@ class Command(BaseCommand):
         skipped_count = 0
 
         for ex in examples:
-            exists = NL2SQLExample.objects.filter(
-                source=source, question=ex["question"]
-            ).exists()
+            exists = NL2SQLExample.objects.filter(source=source, question=ex["question"]).exists()
             if exists:
                 skipped_count += 1
                 continue
@@ -257,7 +256,7 @@ class Command(BaseCommand):
                 is_active=True,
             )
             created_count += 1
-            self.stdout.write(f"  ✓ [{ex.get('domain','')}] {ex['question'][:60]}")
+            self.stdout.write(f"  ✓ [{ex.get('domain', '')}] {ex['question'][:60]}")
 
         self.stdout.write(
             self.style.SUCCESS(

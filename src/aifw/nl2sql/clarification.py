@@ -18,6 +18,7 @@ Usage::
         print(result.question)
         print(result.options)
 """
+
 from __future__ import annotations
 
 import json
@@ -29,37 +30,42 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ClarificationOption:
-    label: str        # "Maschinen"
+    label: str  # "Maschinen"
     description: str  # "Betriebsstatus, Verfügbarkeit, Störungen"
-    hint: str         # Wird an Frage angehängt: "— bezogen auf Maschinen"
+    hint: str  # Wird an Frage angehängt: "— bezogen auf Maschinen"
 
 
 @dataclass
 class ClarificationResult:
     is_ambiguous: bool
-    confidence: float            # 0.0 = eindeutig, 1.0 = maximal ambig
+    confidence: float  # 0.0 = eindeutig, 1.0 = maximal ambig
     reason: str
-    question: str                # Rückfrage an User
+    question: str  # Rückfrage an User
     options: list[ClarificationOption] = field(default_factory=list)
 
     @classmethod
     def from_json(cls, raw: str) -> "ClarificationResult":
         # Extract JSON block — handles Markdown fences and stray text
         import re
-        match = re.search(r'\{.*\}', raw, re.DOTALL)
+
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
         if match:
             raw = match.group(0)
         data = json.loads(raw)
         opts = []
         for o in data.get("options", []):
             if isinstance(o, str):
-                opts.append(ClarificationOption(label=o, description="", hint=f"\u2014 bezogen auf {o}"))
+                opts.append(
+                    ClarificationOption(label=o, description="", hint=f"\u2014 bezogen auf {o}")
+                )
             elif isinstance(o, dict):
-                opts.append(ClarificationOption(
-                    label=o.get("label", ""),
-                    description=o.get("description", ""),
-                    hint=o.get("hint", ""),
-                ))
+                opts.append(
+                    ClarificationOption(
+                        label=o.get("label", ""),
+                        description=o.get("description", ""),
+                        hint=o.get("hint", ""),
+                    )
+                )
         return cls(
             is_ambiguous=bool(data.get("is_ambiguous", False)),
             confidence=float(data.get("confidence", 0.5)),
@@ -128,12 +134,43 @@ class ClarificationDetector:
 
     # Keywords die auf eine spezifische Frage hindeuten → skip LLM call
     _SPECIFIC_KEYWORDS = [
-        "maschine", "maschinen", "auftrag", "aufträge", "störung", "ausschuss",
-        "teil", "teile", "produkt", "produkte", "bestand", "nullbestand",
-        "lieferant", "lieferanten", "top", "wie viele", "zeige", "liste",
-        "qualität", "prüfung", "wartung", "lager", "einkauf", "bestellung",
-        "fällig", "überfällig", "kritisch", "aktiv", "letzte", "diese woche",
-        "legierung", "guss", "gieß", "form", "halle", "country", "partner",
+        "maschine",
+        "maschinen",
+        "auftrag",
+        "aufträge",
+        "störung",
+        "ausschuss",
+        "teil",
+        "teile",
+        "produkt",
+        "produkte",
+        "bestand",
+        "nullbestand",
+        "lieferant",
+        "lieferanten",
+        "top",
+        "wie viele",
+        "zeige",
+        "liste",
+        "qualität",
+        "prüfung",
+        "wartung",
+        "lager",
+        "einkauf",
+        "bestellung",
+        "fällig",
+        "überfällig",
+        "kritisch",
+        "aktiv",
+        "letzte",
+        "diese woche",
+        "legierung",
+        "guss",
+        "gieß",
+        "form",
+        "halle",
+        "country",
+        "partner",
     ]
 
     def __init__(
@@ -217,7 +254,11 @@ class ClarificationDetector:
             cr.is_ambiguous = cr.confidence >= effective_threshold
             return cr
         except Exception as exc:
-            logger.warning("ClarificationDetector JSON-Parse-Fehler: %s | raw: %s", exc, llm_result.content[:200])
+            logger.warning(
+                "ClarificationDetector JSON-Parse-Fehler: %s | raw: %s",
+                exc,
+                llm_result.content[:200],
+            )
             return _fail_open()
 
 

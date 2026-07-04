@@ -1,6 +1,7 @@
 """
 aifw.nl2sql.results — Result dataclasses for NL2SQLEngine.ask().
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

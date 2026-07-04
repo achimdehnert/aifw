@@ -27,6 +27,7 @@ The ``AIFW_PRIVACY_HMAC_SECRET`` setting keys the pseudonymous user hash; it fal
 back to Django's ``SECRET_KEY`` when unset. ``aifw`` never imports ``iil-promptfw`` —
 topic classification is a plain callable injected by the consumer.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -44,8 +45,10 @@ logger = logging.getLogger(__name__)
 # Settings access (read fresh every call — override_settings must take effect)
 # ---------------------------------------------------------------------------
 
+
 def _get_setting(name: str, default: Any = None) -> Any:
     from django.conf import settings
+
     return getattr(settings, name, default)
 
 
@@ -60,6 +63,7 @@ def _hmac_user(user_pk: Any, secret: bytes) -> str:
 
 def _today_iso() -> str:
     from django.utils import timezone
+
     return timezone.now().date().isoformat()
 
 
@@ -76,6 +80,7 @@ def _default_topic_classifier(nl_question: str) -> str:
 # ---------------------------------------------------------------------------
 # Hook implementations
 # ---------------------------------------------------------------------------
+
 
 class PrivacyHook:
     """Base hook — ``full`` mode: identity transform (writes payload raw)."""
@@ -139,6 +144,7 @@ _BUILTIN_HOOKS: dict[str, type[PrivacyHook]] = {
 # Resolution
 # ---------------------------------------------------------------------------
 
+
 def _import_hook(dotted: str) -> PrivacyHook:
     """Import a custom hook from ``"module:attr"`` or ``"module.attr"``."""
     if ":" in dotted:
@@ -159,9 +165,7 @@ def _import_hook(dotted: str) -> PrivacyHook:
             f"AIFW_PRIVACY_HOOK {dotted!r} factory returned {type(result).__name__}, "
             f"expected a PrivacyHook"
         )
-    raise TypeError(
-        f"AIFW_PRIVACY_HOOK {dotted!r} is neither a PrivacyHook, subclass, nor factory"
-    )
+    raise TypeError(f"AIFW_PRIVACY_HOOK {dotted!r} is neither a PrivacyHook, subclass, nor factory")
 
 
 def get_privacy_hook() -> PrivacyHook:
@@ -177,9 +181,7 @@ def get_privacy_hook() -> PrivacyHook:
 
     mode = _get_setting("AIFW_PRIVACY_MODE", PrivacyMode.FULL)
     if not PrivacyMode.is_valid(mode):
-        logger.warning(
-            "Invalid AIFW_PRIVACY_MODE %r — falling back to 'full'", mode
-        )
+        logger.warning("Invalid AIFW_PRIVACY_MODE %r — falling back to 'full'", mode)
         mode = PrivacyMode.FULL
     return _BUILTIN_HOOKS[mode]()
 
@@ -200,9 +202,7 @@ def apply_privacy(payload: dict[str, Any]) -> dict[str, Any]:
         intended = _get_setting("AIFW_PRIVACY_MODE", PrivacyMode.FULL)
         custom = bool(_get_setting("AIFW_PRIVACY_HOOK"))
         if custom or intended != PrivacyMode.FULL:
-            logger.warning(
-                "Privacy hook failed (%s) — failing closed, scrubbing PII", exc
-            )
+            logger.warning("Privacy hook failed (%s) — failing closed, scrubbing PII", exc)
             payload["user"] = None
             payload["metadata"] = {"privacy_error": True}
             payload["privacy_mode"] = (

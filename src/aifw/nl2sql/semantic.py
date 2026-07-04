@@ -21,6 +21,7 @@ Usage::
     # hints.semantic_context = "kaputt → state='breakdown'"
     # hints.temporal = None
 """
+
 from __future__ import annotations
 
 import re
@@ -28,33 +29,37 @@ from dataclasses import dataclass, field
 
 # ── Data Classes (Django-free) ──────────────────────────────────────────────
 
+
 @dataclass
 class GlossaryEntry:
     """Single term → schema mapping."""
-    term: str                    # "kaputt", "Ausschuss", "Lieferant"
-    target_column: str           # "state", "total_scrap_pct", "supplier_rank"
-    target_table: str            # "casting_machine", "casting_order", "res_partner"
-    sql_hint: str                # "state = 'breakdown'", "> 0"
-    category: str = "synonym"    # synonym | filter | aggregate | temporal
+
+    term: str  # "kaputt", "Ausschuss", "Lieferant"
+    target_column: str  # "state", "total_scrap_pct", "supplier_rank"
+    target_table: str  # "casting_machine", "casting_order", "res_partner"
+    sql_hint: str  # "state = 'breakdown'", "> 0"
+    category: str = "synonym"  # synonym | filter | aggregate | temporal
     language: str = "de"
 
 
 @dataclass
 class TemporalHint:
     """Parsed temporal expression → SQL fragment."""
-    original: str                # "diese Woche"
-    sql_fragment: str            # "BETWEEN CURRENT_DATE - INTERVAL '7 days' AND CURRENT_DATE"
-    column_hint: str = ""        # "date_planned" (suggested column)
+
+    original: str  # "diese Woche"
+    sql_fragment: str  # "BETWEEN CURRENT_DATE - INTERVAL '7 days' AND CURRENT_DATE"
+    column_hint: str = ""  # "date_planned" (suggested column)
 
 
 @dataclass
 class SemanticHints:
     """Result of semantic analysis — injected into LLM prompt."""
+
     domain: str | None = None
     domain_confidence: float = 0.0
     glossary_matches: list[GlossaryEntry] = field(default_factory=list)
     temporal: TemporalHint | None = None
-    semantic_context: str = ""   # Pre-formatted text block for prompt injection
+    semantic_context: str = ""  # Pre-formatted text block for prompt injection
 
     def to_prompt_block(self) -> str:
         """Format as text block for LLM system prompt injection."""
@@ -74,66 +79,150 @@ _DEFAULT_GLOSSARY: list[GlossaryEntry] = [
     GlossaryEntry("störung", "state", "casting_machine", "state = 'breakdown'", "filter"),
     GlossaryEntry("defekt", "state", "casting_machine", "state = 'breakdown'", "filter"),
     GlossaryEntry("wartung", "state", "casting_machine", "state = 'maintenance'", "filter"),
-    GlossaryEntry("ausschuss", "total_scrap_pct", "casting_order", "total_scrap_pct (Prozent)", "synonym"),
+    GlossaryEntry(
+        "ausschuss", "total_scrap_pct", "casting_order", "total_scrap_pct (Prozent)", "synonym"
+    ),
     GlossaryEntry("scrap", "total_scrap_pct", "casting_order", "total_scrap_pct", "synonym"),
-    GlossaryEntry("ausschussquote", "total_scrap_pct", "casting_order", "total_scrap_pct (Prozent)", "synonym"),
+    GlossaryEntry(
+        "ausschussquote", "total_scrap_pct", "casting_order", "total_scrap_pct (Prozent)", "synonym"
+    ),
     GlossaryEntry("gutteile", "good_qty", "casting_order_line", "good_qty (Stück)", "synonym"),
-    GlossaryEntry("legierung", "alloy_id", "casting_order_line",
-                   "FK → casting_alloy: JOIN casting_alloy ca ON ca.id = col.alloy_id", "synonym"),
+    GlossaryEntry(
+        "legierung",
+        "alloy_id",
+        "casting_order_line",
+        "FK → casting_alloy: JOIN casting_alloy ca ON ca.id = col.alloy_id",
+        "synonym",
+    ),
     GlossaryEntry("form", "mold_id", "casting_order_line", "FK → casting_mold", "synonym"),
-    GlossaryEntry("gießverfahren", "casting_process", "casting_order_line", "casting_process", "synonym"),
+    GlossaryEntry(
+        "gießverfahren", "casting_process", "casting_order_line", "casting_process", "synonym"
+    ),
     GlossaryEntry("halle", "hall", "casting_machine", "hall (Standort/Halle)", "synonym"),
     GlossaryEntry("storniert", "state", "casting_order", "state = 'cancelled'", "filter"),
     GlossaryEntry("abgeschlossen", "state", "casting_order", "state = 'done'", "filter"),
     GlossaryEntry("in produktion", "state", "casting_order", "state = 'in_production'", "filter"),
     GlossaryEntry("bestätigt", "state", "casting_order", "state = 'confirmed'", "filter"),
     GlossaryEntry("entwurf", "state", "casting_order", "state = 'draft'", "filter"),
-    GlossaryEntry("qualitätsprüfung", "result", "casting_quality_check", "result (pass/fail/conditional)", "synonym"),
-    GlossaryEntry("prüfung", "result", "casting_quality_check", "result (pass/fail/conditional)", "synonym"),
-
+    GlossaryEntry(
+        "qualitätsprüfung",
+        "result",
+        "casting_quality_check",
+        "result (pass/fail/conditional)",
+        "synonym",
+    ),
+    GlossaryEntry(
+        "prüfung", "result", "casting_quality_check", "result (pass/fail/conditional)", "synonym"
+    ),
     # ── Partner / Country ──
     GlossaryEntry("kunde", "customer_rank", "res_partner", "customer_rank > 0", "filter"),
     GlossaryEntry("kunden", "customer_rank", "res_partner", "customer_rank > 0", "filter"),
     GlossaryEntry("lieferant", "supplier_rank", "res_partner", "supplier_rank > 0", "filter"),
     GlossaryEntry("lieferanten", "supplier_rank", "res_partner", "supplier_rank > 0", "filter"),
-    GlossaryEntry("land", "country_id", "res_partner",
-                   "FK → res_country: JOIN res_country rc ON rc.id = rp.country_id → rc.name", "synonym"),
-    GlossaryEntry("länder", "country_id", "res_partner",
-                   "FK → res_country: JOIN res_country rc ON rc.id = rp.country_id → rc.name", "synonym"),
-
+    GlossaryEntry(
+        "land",
+        "country_id",
+        "res_partner",
+        "FK → res_country: JOIN res_country rc ON rc.id = rp.country_id → rc.name",
+        "synonym",
+    ),
+    GlossaryEntry(
+        "länder",
+        "country_id",
+        "res_partner",
+        "FK → res_country: JOIN res_country rc ON rc.id = rp.country_id → rc.name",
+        "synonym",
+    ),
     # ── SCM domain ──
     GlossaryEntry("bestellung", "id", "scm_purchase_order", "scm_purchase_order", "synonym"),
     GlossaryEntry("einkauf", "id", "scm_purchase_order", "scm_purchase_order", "synonym"),
-    GlossaryEntry("fertigungsauftrag", "id", "scm_production_order", "scm_production_order", "synonym"),
-    GlossaryEntry("produktionsauftrag", "id", "scm_production_order", "scm_production_order", "synonym"),
-    GlossaryEntry("ausbeute", "yield_pct", "scm_production_order", "yield_pct (Prozent)", "synonym"),
-    GlossaryEntry("überfällig", "date_planned", "casting_order",
-                   "date_planned < CURRENT_DATE AND state NOT IN ('done','cancelled')", "filter"),
+    GlossaryEntry(
+        "fertigungsauftrag", "id", "scm_production_order", "scm_production_order", "synonym"
+    ),
+    GlossaryEntry(
+        "produktionsauftrag", "id", "scm_production_order", "scm_production_order", "synonym"
+    ),
+    GlossaryEntry(
+        "ausbeute", "yield_pct", "scm_production_order", "yield_pct (Prozent)", "synonym"
+    ),
+    GlossaryEntry(
+        "überfällig",
+        "date_planned",
+        "casting_order",
+        "date_planned < CURRENT_DATE AND state NOT IN ('done','cancelled')",
+        "filter",
+    ),
     GlossaryEntry("fällig", "date_planned", "casting_order", "date_planned", "synonym"),
-
     # ── Stock / Inventory domain ──
-    GlossaryEntry("teil", "product_id", "stock_quant",
-                   "stock_quant JOIN product_product pp ON pp.id = sq.product_id JOIN product_template pt ON pt.id = pp.product_tmpl_id", "synonym"),
-    GlossaryEntry("teile", "product_id", "stock_quant",
-                   "stock_quant JOIN product_product pp ON pp.id = sq.product_id JOIN product_template pt ON pt.id = pp.product_tmpl_id", "synonym"),
-    GlossaryEntry("artikel", "product_id", "stock_quant",
-                   "stock_quant JOIN product_product → product_template", "synonym"),
-    GlossaryEntry("produkt", "name", "product_template",
-                   "product_template.name->>'en_US' (JSONB)", "synonym"),
-    GlossaryEntry("produkte", "name", "product_template",
-                   "product_template.name->>'en_US' (JSONB)", "synonym"),
-    GlossaryEntry("nullbestand", "quantity", "stock_quant",
-                   "quantity <= 0 (auf internen Lagerorten: stock_location.usage = 'internal')", "filter"),
-    GlossaryEntry("bestand", "quantity", "stock_quant",
-                   "SUM(quantity) GROUP BY product_id (nur stock_location.usage = 'internal')", "synonym"),
-    GlossaryEntry("lagerbestand", "quantity", "stock_quant",
-                   "SUM(quantity) über stock_quant WHERE stock_location.usage = 'internal'", "synonym"),
-    GlossaryEntry("kritisch", "product_min_qty", "stock_warehouse_orderpoint",
-                   "Bestand < product_min_qty (stock_warehouse_orderpoint)", "filter"),
-    GlossaryEntry("mindestbestand", "product_min_qty", "stock_warehouse_orderpoint",
-                   "product_min_qty in stock_warehouse_orderpoint", "synonym"),
-    GlossaryEntry("lagerort", "location_id", "stock_quant",
-                   "FK → stock_location: JOIN stock_location sl ON sl.id = sq.location_id → sl.complete_name", "synonym"),
+    GlossaryEntry(
+        "teil",
+        "product_id",
+        "stock_quant",
+        "stock_quant JOIN product_product pp ON pp.id = sq.product_id JOIN product_template pt ON pt.id = pp.product_tmpl_id",
+        "synonym",
+    ),
+    GlossaryEntry(
+        "teile",
+        "product_id",
+        "stock_quant",
+        "stock_quant JOIN product_product pp ON pp.id = sq.product_id JOIN product_template pt ON pt.id = pp.product_tmpl_id",
+        "synonym",
+    ),
+    GlossaryEntry(
+        "artikel",
+        "product_id",
+        "stock_quant",
+        "stock_quant JOIN product_product → product_template",
+        "synonym",
+    ),
+    GlossaryEntry(
+        "produkt", "name", "product_template", "product_template.name->>'en_US' (JSONB)", "synonym"
+    ),
+    GlossaryEntry(
+        "produkte", "name", "product_template", "product_template.name->>'en_US' (JSONB)", "synonym"
+    ),
+    GlossaryEntry(
+        "nullbestand",
+        "quantity",
+        "stock_quant",
+        "quantity <= 0 (auf internen Lagerorten: stock_location.usage = 'internal')",
+        "filter",
+    ),
+    GlossaryEntry(
+        "bestand",
+        "quantity",
+        "stock_quant",
+        "SUM(quantity) GROUP BY product_id (nur stock_location.usage = 'internal')",
+        "synonym",
+    ),
+    GlossaryEntry(
+        "lagerbestand",
+        "quantity",
+        "stock_quant",
+        "SUM(quantity) über stock_quant WHERE stock_location.usage = 'internal'",
+        "synonym",
+    ),
+    GlossaryEntry(
+        "kritisch",
+        "product_min_qty",
+        "stock_warehouse_orderpoint",
+        "Bestand < product_min_qty (stock_warehouse_orderpoint)",
+        "filter",
+    ),
+    GlossaryEntry(
+        "mindestbestand",
+        "product_min_qty",
+        "stock_warehouse_orderpoint",
+        "product_min_qty in stock_warehouse_orderpoint",
+        "synonym",
+    ),
+    GlossaryEntry(
+        "lagerort",
+        "location_id",
+        "stock_quant",
+        "FK → stock_location: JOIN stock_location sl ON sl.id = sq.location_id → sl.complete_name",
+        "synonym",
+    ),
     GlossaryEntry("artikelnummer", "default_code", "product_template", "default_code", "synonym"),
     GlossaryEntry("barcode", "barcode", "product_product", "barcode", "synonym"),
 ]
@@ -143,16 +232,44 @@ _DEFAULT_GLOSSARY: list[GlossaryEntry] = [
 
 _TEMPORAL_PATTERNS: list[tuple[str, str, str]] = [
     # (regex_pattern, sql_fragment, column_hint)
-    (r"diese[rnm]?\s+woche", "BETWEEN CURRENT_DATE - INTERVAL '7 days' AND CURRENT_DATE", "date_planned"),
-    (r"letzte[rnm]?\s+woche", "BETWEEN CURRENT_DATE - INTERVAL '14 days' AND CURRENT_DATE - INTERVAL '7 days'", "date_planned"),
-    (r"diese[rnm]?\s+monat", "BETWEEN date_trunc('month', CURRENT_DATE) AND CURRENT_DATE", "date_planned"),
-    (r"letzte[rnm]?\s+monat", "BETWEEN date_trunc('month', CURRENT_DATE) - INTERVAL '1 month' AND date_trunc('month', CURRENT_DATE) - INTERVAL '1 day'", "date_planned"),
+    (
+        r"diese[rnm]?\s+woche",
+        "BETWEEN CURRENT_DATE - INTERVAL '7 days' AND CURRENT_DATE",
+        "date_planned",
+    ),
+    (
+        r"letzte[rnm]?\s+woche",
+        "BETWEEN CURRENT_DATE - INTERVAL '14 days' AND CURRENT_DATE - INTERVAL '7 days'",
+        "date_planned",
+    ),
+    (
+        r"diese[rnm]?\s+monat",
+        "BETWEEN date_trunc('month', CURRENT_DATE) AND CURRENT_DATE",
+        "date_planned",
+    ),
+    (
+        r"letzte[rnm]?\s+monat",
+        "BETWEEN date_trunc('month', CURRENT_DATE) - INTERVAL '1 month' AND date_trunc('month', CURRENT_DATE) - INTERVAL '1 day'",
+        "date_planned",
+    ),
     (r"heute", "= CURRENT_DATE", "date_planned"),
     (r"gestern", "= CURRENT_DATE - INTERVAL '1 day'", "date_planned"),
-    (r"letzten?\s+(\d+)\s+tage?n?", "BETWEEN CURRENT_DATE - INTERVAL '{0} days' AND CURRENT_DATE", "date_planned"),
-    (r"letzten?\s+(\d+)\s+monat(?:e|en)?", "BETWEEN CURRENT_DATE - INTERVAL '{0} months' AND CURRENT_DATE", "date_planned"),
+    (
+        r"letzten?\s+(\d+)\s+tage?n?",
+        "BETWEEN CURRENT_DATE - INTERVAL '{0} days' AND CURRENT_DATE",
+        "date_planned",
+    ),
+    (
+        r"letzten?\s+(\d+)\s+monat(?:e|en)?",
+        "BETWEEN CURRENT_DATE - INTERVAL '{0} months' AND CURRENT_DATE",
+        "date_planned",
+    ),
     (r"dieses\s+jahr", "BETWEEN date_trunc('year', CURRENT_DATE) AND CURRENT_DATE", "create_date"),
-    (r"letztes\s+jahr", "BETWEEN date_trunc('year', CURRENT_DATE) - INTERVAL '1 year' AND date_trunc('year', CURRENT_DATE) - INTERVAL '1 day'", "create_date"),
+    (
+        r"letztes\s+jahr",
+        "BETWEEN date_trunc('year', CURRENT_DATE) - INTERVAL '1 year' AND date_trunc('year', CURRENT_DATE) - INTERVAL '1 day'",
+        "create_date",
+    ),
 ]
 
 
@@ -160,27 +277,73 @@ _TEMPORAL_PATTERNS: list[tuple[str, str, str]] = [
 
 _DOMAIN_KEYWORDS: dict[str, list[str]] = {
     "casting": [
-        "maschine", "maschinen", "gieß", "guss", "gießerei", "form", "legierung",
-        "auftrag", "aufträge", "ausschuss", "qualität", "prüfung", "halle",
-        "störung", "kaputt", "wartung", "casting", "mold",
+        "maschine",
+        "maschinen",
+        "gieß",
+        "guss",
+        "gießerei",
+        "form",
+        "legierung",
+        "auftrag",
+        "aufträge",
+        "ausschuss",
+        "qualität",
+        "prüfung",
+        "halle",
+        "störung",
+        "kaputt",
+        "wartung",
+        "casting",
+        "mold",
     ],
     "scm": [
-        "bestellung", "einkauf", "lieferant", "lieferung",
-        "fertigung", "produktion", "bom", "stückliste", "purchase",
+        "bestellung",
+        "einkauf",
+        "lieferant",
+        "lieferung",
+        "fertigung",
+        "produktion",
+        "bom",
+        "stückliste",
+        "purchase",
     ],
     "stock": [
-        "teil", "teile", "artikel", "produkt", "produkte", "lager", "bestand",
-        "nullbestand", "lagerbestand", "lagerort", "kritisch", "mindestbestand",
-        "barcode", "artikelnummer", "vorrat", "inventory", "stock", "warehouse",
+        "teil",
+        "teile",
+        "artikel",
+        "produkt",
+        "produkte",
+        "lager",
+        "bestand",
+        "nullbestand",
+        "lagerbestand",
+        "lagerort",
+        "kritisch",
+        "mindestbestand",
+        "barcode",
+        "artikelnummer",
+        "vorrat",
+        "inventory",
+        "stock",
+        "warehouse",
     ],
     "base": [
-        "kunde", "kunden", "partner", "land", "länder", "firma", "unternehmen",
-        "kontakt", "email", "telefon",
+        "kunde",
+        "kunden",
+        "partner",
+        "land",
+        "länder",
+        "firma",
+        "unternehmen",
+        "kontakt",
+        "email",
+        "telefon",
     ],
 }
 
 
 # ── SemanticBridge ───────────────────────────────────────────────────────────
+
 
 class SemanticBridge:
     """Bridges natural language to DB schema semantics.
@@ -215,6 +378,7 @@ class SemanticBridge:
         """Load additional glossary entries from DB (if available). Returns count added."""
         try:
             from aifw.nl2sql.models import SchemaSource
+
             source = SchemaSource.objects.filter(code=source_code, is_active=True).first()
             if source and hasattr(source, "glossary_entries"):
                 # Future: DB-backed SemanticGlossary model
@@ -290,15 +454,17 @@ class SemanticBridge:
         parts: list[str] = []
 
         if hints.domain:
-            parts.append(f"- Erkannte Domäne: {hints.domain} (Konfidenz: {hints.domain_confidence:.0%})")
+            parts.append(
+                f"- Erkannte Domäne: {hints.domain} (Konfidenz: {hints.domain_confidence:.0%})"
+            )
 
         if hints.glossary_matches:
             for g in hints.glossary_matches:
-                parts.append(f"- \"{g.term}\" → {g.target_table}.{g.target_column}: {g.sql_hint}")
+                parts.append(f'- "{g.term}" → {g.target_table}.{g.target_column}: {g.sql_hint}')
 
         if hints.temporal:
             parts.append(
-                f"- Zeitbezug \"{hints.temporal.original}\" → "
+                f'- Zeitbezug "{hints.temporal.original}" → '
                 f"{hints.temporal.column_hint} {hints.temporal.sql_fragment}"
             )
 

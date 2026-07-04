@@ -30,6 +30,7 @@ User = get_user_model()
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def provider(db):
     return LLMProvider.objects.create(
@@ -74,8 +75,12 @@ def config(action, model, provider):
 @pytest.fixture
 def result():
     return LLMResult(
-        success=True, content="ok", model="gpt-4o-mini",
-        input_tokens=100, output_tokens=50, latency_ms=200,
+        success=True,
+        content="ok",
+        model="gpt-4o-mini",
+        input_tokens=100,
+        output_tokens=50,
+        latency_ms=200,
     )
 
 
@@ -87,6 +92,7 @@ def user(db):
 # ---------------------------------------------------------------------------
 # Constants / resolution
 # ---------------------------------------------------------------------------
+
 
 def test_should_validate_known_privacy_modes():
     assert PrivacyMode.is_valid("full")
@@ -122,11 +128,10 @@ def test_should_fall_back_to_full_on_invalid_mode():
 # apply_privacy() — unit level
 # ---------------------------------------------------------------------------
 
+
 @override_settings(AIFW_PRIVACY_MODE="full")
 def test_should_pass_payload_through_unchanged_in_full_mode(user):
-    payload = apply_privacy(
-        {"user": user, "metadata": {"nl_question": "how many orders?"}}
-    )
+    payload = apply_privacy({"user": user, "metadata": {"nl_question": "how many orders?"}})
     assert payload["user"] is user
     assert payload["metadata"]["nl_question"] == "how many orders?"
     assert payload["privacy_mode"] == "full"
@@ -134,9 +139,7 @@ def test_should_pass_payload_through_unchanged_in_full_mode(user):
 
 @override_settings(AIFW_PRIVACY_MODE="pseudonymous", AIFW_PRIVACY_HMAC_SECRET="s3cr3t")
 def test_should_pseudonymise_user_and_classify_question(user):
-    payload = apply_privacy(
-        {"user": user, "metadata": {"nl_question": "how many orders?"}}
-    )
+    payload = apply_privacy({"user": user, "metadata": {"nl_question": "how many orders?"}})
     assert payload["user"] is None
     assert "nl_question" not in payload["metadata"]
     assert payload["metadata"]["topic"] == "unclassified"
@@ -153,9 +156,7 @@ def test_should_produce_stable_user_hash(user):
 
 @override_settings(AIFW_PRIVACY_MODE="anonymous")
 def test_should_strip_all_user_trace_in_anonymous_mode(user):
-    payload = apply_privacy(
-        {"user": user, "metadata": {"nl_question": "secret", "extra": 1}}
-    )
+    payload = apply_privacy({"user": user, "metadata": {"nl_question": "secret", "extra": 1}})
     assert payload["user"] is None
     assert list(payload["metadata"].keys()) == ["day_bucket"]
     assert payload["privacy_mode"] == "anonymous"
@@ -164,6 +165,7 @@ def test_should_strip_all_user_trace_in_anonymous_mode(user):
 # ---------------------------------------------------------------------------
 # Custom hook registration
 # ---------------------------------------------------------------------------
+
 
 class _ShoutHook(PrivacyHook):
     mode = "pseudonymous"
@@ -194,6 +196,7 @@ def test_should_load_custom_hook_instance_by_dotted_path(user):
 # Fail-closed
 # ---------------------------------------------------------------------------
 
+
 class _BrokenHook(PrivacyHook):
     mode = "pseudonymous"
 
@@ -206,9 +209,7 @@ class _BrokenHook(PrivacyHook):
     AIFW_PRIVACY_MODE="pseudonymous",
 )
 def test_should_fail_closed_and_scrub_pii_when_hook_raises(user):
-    payload = apply_privacy(
-        {"user": user, "metadata": {"nl_question": "leak me"}}
-    )
+    payload = apply_privacy({"user": user, "metadata": {"nl_question": "leak me"}})
     assert payload["user"] is None
     assert payload["metadata"] == {"privacy_error": True}
     assert payload["privacy_mode"] == "pseudonymous"
@@ -218,6 +219,7 @@ def test_should_fail_closed_and_scrub_pii_when_hook_raises(user):
 # E2E through _log_usage (real DB write)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
 @override_settings(AIFW_PRIVACY_MODE="pseudonymous", AIFW_PRIVACY_HMAC_SECRET="k")
@@ -225,7 +227,9 @@ async def test_should_write_pseudonymous_row(config, result, user):
     from aifw.service import _log_usage
 
     await _log_usage(
-        config, result, user=user,
+        config,
+        result,
+        user=user,
         metadata={"nl_question": "how many late orders?"},
     )
 
@@ -245,7 +249,10 @@ async def test_should_write_anonymous_row(config, result, user):
 
     tenant = uuid.uuid4()
     await _log_usage(
-        config, result, user=user, tenant_id=tenant,
+        config,
+        result,
+        user=user,
+        tenant_id=tenant,
         metadata={"nl_question": "secret"},
     )
 
@@ -263,7 +270,9 @@ async def test_should_default_to_full_raw_row(config, result, user):
     from aifw.service import _log_usage
 
     await _log_usage(
-        config, result, user=user,
+        config,
+        result,
+        user=user,
         metadata={"nl_question": "how many orders?"},
     )
 
@@ -277,22 +286,27 @@ async def test_should_default_to_full_raw_row(config, result, user):
 # k-anonymity helper
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.django_db
 def test_should_suppress_buckets_below_k(action, model):
     # 3 rows for ql=5, 1 row for ql=8 → with k=3 only the ql=5 bucket survives.
     for _ in range(3):
         AIUsageLog.objects.create(
-            action_type=action, model_used=model, quality_level=5,
-            input_tokens=10, output_tokens=5,
+            action_type=action,
+            model_used=model,
+            quality_level=5,
+            input_tokens=10,
+            output_tokens=5,
         )
     AIUsageLog.objects.create(
-        action_type=action, model_used=model, quality_level=8,
-        input_tokens=10, output_tokens=5,
+        action_type=action,
+        model_used=model,
+        quality_level=8,
+        input_tokens=10,
+        output_tokens=5,
     )
 
-    buckets = list(
-        AIUsageLog.objects.aggregate_with_k_anonymity("quality_level", k=3)
-    )
+    buckets = list(AIUsageLog.objects.aggregate_with_k_anonymity("quality_level", k=3))
     assert len(buckets) == 1
     assert buckets[0]["quality_level"] == 5
     assert buckets[0]["entry_count"] == 3

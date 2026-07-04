@@ -10,6 +10,7 @@ Activate by adding "aifw.nl2sql" to INSTALLED_APPS:
 Projects that don't need NL2SQL (travel-beat, writing-hub, weltenhub)
 simply omit this entry — no tables are created, no overhead.
 """
+
 from django.apps import AppConfig
 
 

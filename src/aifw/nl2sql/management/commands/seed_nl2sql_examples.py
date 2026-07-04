@@ -9,6 +9,7 @@ Usage:
     python manage.py seed_nl2sql_examples --source odoo_mfg
     python manage.py seed_nl2sql_examples --clear
 """
+
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand
@@ -205,9 +206,7 @@ class Command(BaseCommand):
         skipped_count = 0
 
         for ex in examples:
-            exists = NL2SQLExample.objects.filter(
-                source=source, question=ex["question"]
-            ).exists()
+            exists = NL2SQLExample.objects.filter(source=source, question=ex["question"]).exists()
             if exists:
                 skipped_count += 1
                 continue
@@ -221,7 +220,7 @@ class Command(BaseCommand):
                 is_active=True,
             )
             created_count += 1
-            self.stdout.write(f"  ✓ [{ex.get('domain','')}] {ex['question'][:60]}")
+            self.stdout.write(f"  ✓ [{ex.get('domain', '')}] {ex['question'][:60]}")
 
         self.stdout.write(
             self.style.SUCCESS(

@@ -17,6 +17,7 @@ New in 0.6.1:
 Uniqueness on AIActionType is enforced by 4 partial unique indexes (migration 0005),
 not unique_together — required due to PostgreSQL NULL != NULL semantics.
 """
+
 from __future__ import annotations
 
 import logging
@@ -54,20 +55,14 @@ class LLMProvider(models.Model):
 class LLMModel(models.Model):
     """Available LLM models with cost & capability metadata."""
 
-    provider = models.ForeignKey(
-        LLMProvider, on_delete=models.PROTECT, related_name="models"
-    )
+    provider = models.ForeignKey(LLMProvider, on_delete=models.PROTECT, related_name="models")
     name = models.CharField(max_length=100)
     display_name = models.CharField(max_length=100)
     max_tokens = models.IntegerField(default=4096)
     supports_vision = models.BooleanField(default=False)
     supports_tools = models.BooleanField(default=True)
-    input_cost_per_million = models.DecimalField(
-        max_digits=10, decimal_places=4, default=0
-    )
-    output_cost_per_million = models.DecimalField(
-        max_digits=10, decimal_places=4, default=0
-    )
+    input_cost_per_million = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    output_cost_per_million = models.DecimalField(max_digits=10, decimal_places=4, default=0)
     is_active = models.BooleanField(default=True)
     is_default = models.BooleanField(default=False)
 
@@ -190,9 +185,7 @@ class AIActionType(models.Model):
                 f"Valid values: {sorted(VALID_PRIORITIES)} or None."
             )
         if self.quality_level is not None and not QualityLevel.is_valid(self.quality_level):
-            raise ValidationError(
-                f"quality_level must be 1–9 or None, got {self.quality_level}."
-            )
+            raise ValidationError(f"quality_level must be 1–9 or None, got {self.quality_level}.")
 
     def get_model(self) -> LLMModel | None:
         """Return the effective model respecting budget limits."""
@@ -286,9 +279,7 @@ class TierQualityMapping(models.Model):
 class AIUsageLogQuerySet(models.QuerySet):
     """Custom queryset with a k-anonymity aggregation helper (issue #8)."""
 
-    def aggregate_with_k_anonymity(
-        self, *group_by: str, k: int = 3
-    ) -> "models.QuerySet":
+    def aggregate_with_k_anonymity(self, *group_by: str, k: int = 3) -> "models.QuerySet":
         """Group by the given fields, returning only buckets with ≥ k entries.
 
         Useful for supervisor-facing usage views without re-identification risk:
@@ -323,12 +314,8 @@ class AIUsageLog(models.Model):
     write time (issue #8). See aifw.privacy for the pre-write transform.
     """
 
-    action_type = models.ForeignKey(
-        AIActionType, on_delete=models.SET_NULL, null=True, blank=True
-    )
-    model_used = models.ForeignKey(
-        LLMModel, on_delete=models.SET_NULL, null=True, blank=True
-    )
+    action_type = models.ForeignKey(AIActionType, on_delete=models.SET_NULL, null=True, blank=True)
+    model_used = models.ForeignKey(LLMModel, on_delete=models.SET_NULL, null=True, blank=True)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -402,6 +389,7 @@ class AIUsageLog(models.Model):
 
     def save(self, *args, **kwargs) -> None:
         from aifw.cost import estimate_cost
+
         self.total_tokens = self.input_tokens + self.output_tokens
         if not self.estimated_cost:
             self.estimated_cost = estimate_cost(

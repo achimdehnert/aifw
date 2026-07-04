@@ -17,6 +17,7 @@ Intended for CI pre-deploy checks and Docker entrypoint health gates.
 
 ADR-097 G-097-01.
 """
+
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand, CommandError

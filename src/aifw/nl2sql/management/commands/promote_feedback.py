@@ -10,6 +10,7 @@ Usage:
     python manage.py promote_feedback --min-age-hours 1
     python manage.py promote_feedback --dry-run
 """
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -70,18 +71,14 @@ class Command(BaseCommand):
             ).exists()
 
             if exists:
-                self.stdout.write(
-                    self.style.WARNING(f"  SKIP (Duplicate): {fb.question[:60]}")
-                )
+                self.stdout.write(self.style.WARNING(f"  SKIP (Duplicate): {fb.question[:60]}"))
                 if not dry_run:
                     fb.promoted = True
                     fb.save(update_fields=["promoted"])
                 skipped_count += 1
                 continue
 
-            self.stdout.write(
-                f"  ✓ [{fb.source.code}] [{fb.error_type}] {fb.question[:60]}"
-            )
+            self.stdout.write(f"  ✓ [{fb.source.code}] [{fb.error_type}] {fb.question[:60]}")
 
             if not dry_run:
                 NL2SQLExample.objects.create(
