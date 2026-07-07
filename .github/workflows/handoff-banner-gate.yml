@@ -1,0 +1,22 @@
+name: Handoff-Banner-Gate
+
+# Ruft den zentralen Gate-Workflow aus platform auf (reusable workflow_call) — Rezenz-Check für
+# AGENT_HANDOVER.md (Gate `handover-stale-vor-merge`, platform-Issue #982-Rollout). Einzige Quelle
+# der Wahrheit ist platform:.github/workflows/handoff-banner-gate.yml@main — Änderungen dort
+# wirken hier automatisch, ohne dass diese Datei angefasst werden muss.
+#
+# Abhängigkeit: braucht platform#981 (workflow_call-Support) auf platforms main gemergt, bevor
+# eine PR hier AGENT_HANDOVER.md ändert — sonst schlägt der Call fehl (main hat es noch nicht).
+
+on:
+  pull_request:
+    paths:
+      - 'AGENT_HANDOVER.md'
+      - '**/AGENT_HANDOVER.md'
+
+permissions:
+  contents: read
+
+jobs:
+  handoff-banner:
+    uses: achimdehnert/platform/.github/workflows/handoff-banner-gate.yml@main
