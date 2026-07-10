@@ -677,7 +677,9 @@ async def _log_usage(
     object_id: str = "",
     metadata: dict[str, Any] | None = None,
     quality_level: int | None = None,
-) -> None:
+) -> str:
+    """Persist an AIUsageLog row for this call. Returns its primary key as a
+    string (LLMResult.call_id), or "" if logging failed — never raises."""
     try:
         from aifw.models import AIActionType, AIUsageLog, LLMModel
 
@@ -739,9 +741,11 @@ async def _log_usage(
             }
         )
 
-        await sync_to_async(AIUsageLog.objects.create)(**payload)
+        log = await sync_to_async(AIUsageLog.objects.create)(**payload)
+        return str(log.id)
     except Exception as exc:
         logger.warning("Failed to log usage: %s", exc)
+        return ""
 
 
 # ---------------------------------------------------------------------------
@@ -826,7 +830,7 @@ async def completion(
             model=kwargs.get("model", ""),
         )
 
-    await _log_usage(
+    result.call_id = await _log_usage(
         config,
         result,
         user=user,

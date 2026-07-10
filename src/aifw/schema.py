@@ -50,6 +50,12 @@ class LLMResult:
     output_tokens: int = 0
     latency_ms: int = 0
     error: str = ""
+    call_id: str = ""
+    """Primary key of the AIUsageLog row this call was persisted under, if
+    logging succeeded (empty string otherwise — e.g. logging failed, or the
+    call itself failed before reaching a model). Stable per-call identifier
+    consumers can store for traceability/audit (e.g. writing-hub REC-10:
+    LectureRevision.aifw_call_id)."""
 
     @property
     def has_tool_calls(self) -> bool:
