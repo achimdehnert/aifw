@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added (writing-hub REC-10 — call-metadata traceability)
+- **`LLMResult.call_id`**: new additive field carrying the `AIUsageLog` row's
+  primary key for this call as a string, or `""` if usage-logging failed
+  (never raises). `model` was already present on `LLMResult` — consumers
+  needing per-call traceability (e.g. writing-hub's `LectureRevision.aifw_call_id`)
+  no longer have to add their own logging path; `_log_usage()`'s existing
+  DB write already produced this identifier, it was just discarded.
+
 ### Added (NL2X-Fleet-Audit WP6 — platform#913)
 - **NL2SQL-System-Prompt via promptfw (ADR-146).** `NL2SQLEngine` löst den System-Prompt jetzt zuerst über das DB-verwaltete promptfw-Template `nl2sql.system` auf (`promptfw.contrib.django.resolution.render_prompt`). Fallback ist das bisherige hardcodierte `SYSTEM_PROMPT_TEMPLATE` — Installationen **ohne** das `[promptfw]`-Extra behalten byte-identisches Verhalten (Soft-Import, gleiches Muster wie `aifw.schema.extract_json`; kein harter Bruch, keine neue Pflicht-Dependency).
 - **`init_aifw_config` seedet das promptfw-Template** `nl2sql.system` (Jinja2-Fassung des builtin Prompts), wenn promptfw installiert und migriert ist; sonst sauberer Skip.

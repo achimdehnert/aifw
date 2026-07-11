@@ -156,6 +156,37 @@ async def test_should_default_null_when_not_provided(config, success_result):
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
+async def test_should_return_created_log_pk_as_call_id(config, success_result):
+    """_log_usage returns the created AIUsageLog's pk as a string (REC-10:
+    consumers persist this as LLMResult.call_id for traceability)."""
+    from aifw.service import _log_usage
+
+    call_id = await _log_usage(config, success_result)
+
+    log = await AIUsageLog.objects.alatest("created_at")
+    assert call_id == str(log.id)
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.asyncio
+async def test_should_return_empty_string_when_logging_raises(config, success_result, monkeypatch):
+    """_log_usage never raises — a DB/logging failure returns "" so the
+    caller's LLMResult.call_id degrades gracefully instead of losing the
+    actual LLM response over a logging problem."""
+    from aifw import service
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("simulated DB failure")
+
+    monkeypatch.setattr(service, "sync_to_async", lambda fn: _boom)
+
+    call_id = await service._log_usage(config, success_result)
+
+    assert call_id == ""
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.asyncio
 async def test_should_write_failed_result_with_tenant_id(config):
     """_log_usage writes failed LLM result with tenant_id correctly."""
     from aifw.service import _log_usage
