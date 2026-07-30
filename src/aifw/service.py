@@ -29,6 +29,7 @@ import json
 import logging
 import os
 import queue
+import re
 import threading
 import time
 import uuid
@@ -438,14 +439,26 @@ def _resolve_api_key(provider_name: str, env_var: str) -> str:
     """
     if env_var:
         return os.environ.get(env_var, "")
+    if not provider_name:
+        return ""
+    # Erst die ausdruecklich hinterlegten Namen, dann die Konvention
+    # <PROVIDER>_API_KEY. Die Map allein deckte vier Provider ab; groq, mistral,
+    # deepseek, together und alles Weitere fielen still auf "" — und ein leerer
+    # Schluessel liest sich beim Provider zeichengleich wie ein ungueltiger.
     fallback_map = {
         "anthropic": "ANTHROPIC_API_KEY",
         "openai": "OPENAI_API_KEY",
         "google": "GOOGLE_API_KEY",
         "gemini": "GEMINI_API_KEY",
     }
-    env_var = fallback_map.get(provider_name.lower(), "")
-    return os.environ.get(env_var, "") if env_var else ""
+    schluessel = provider_name.lower()
+    env_var = fallback_map.get(schluessel) or _env_var_name(schluessel)
+    return os.environ.get(env_var, "")
+
+
+def _env_var_name(provider_name: str) -> str:
+    """Konventioneller Variablenname eines Providers: ``<PROVIDER>_API_KEY``."""
+    return f"{re.sub(r'[^A-Z0-9]', '_', provider_name.upper())}_API_KEY"
 
 
 def _get_api_key(provider) -> str:
@@ -555,7 +568,62 @@ def _build_kwargs(
     if api_base:
         kwargs["api_base"] = api_base
     kwargs.update(overrides)
+    _follow_model_override(kwargs, config, overrides)
     return kwargs
+
+
+def _provider_of(model_string: str) -> str:
+    """Provider-Praefix eines litellm-Modellstrings, klein — '' wenn keins da ist."""
+    return model_string.split("/", 1)[0].lower() if "/" in (model_string or "") else ""
+
+
+def _follow_model_override(
+    kwargs: dict[str, Any],
+    config: dict[str, Any],
+    overrides: dict[str, Any],
+) -> None:
+    """Der Schluessel folgt dem ueberschriebenen Modell, nicht der Verdrahtung.
+
+    Ein ``model``-Override tauschte bisher nur den Modellstring; ``api_key`` blieb
+    der des VERDRAHTETEN Providers. Wer ``model="groq/..."`` gegen eine auf OpenAI
+    verdrahtete Action setzte, schickte damit den OpenAI-Schluessel an Groq und
+    bekam „Invalid API Key" — eine Meldung, die wie ein toter Schluessel aussieht,
+    obwohl beide Schluessel gueltig sind.
+
+    Das traf jeden Konsumenten, der Modelle vergleicht: writing-hub baute sich
+    dafuer eine eigene Aufloesung und musste den Schluessel bei JEDEM Aufruf
+    manuell mitgeben. Die Regel gehoert hierher — sonst kennt sie jeder Aufrufer
+    einzeln, oder eben nicht.
+
+    Ein ausdruecklich mitgegebener ``api_key`` gewinnt weiterhin: er ist die
+    explizitere Angabe, und Aufrufer mit eigener Schluesselverwaltung (bereits
+    ausgerollte Workarounds eingeschlossen) verhalten sich unveraendert.
+    """
+    if "model" not in overrides or "api_key" in overrides:
+        return
+
+    neuer_provider = _provider_of(str(overrides["model"]))
+    if not neuer_provider or neuer_provider == _provider_of(config.get("model_string", "")):
+        return
+
+    # Kein `api_key_env_var` uebergeben: der ist an den verdrahteten Provider
+    # gebunden und waere hier die falsche Antwort. Die Namenskonvention des
+    # Ziel-Providers ist die richtige.
+    key = _resolve_api_key(neuer_provider, "")
+    if key:
+        kwargs["api_key"] = key
+    else:
+        # Den fremden Schluessel NICHT stehenlassen: er scheitert garantiert und
+        # erzeugt dabei die irrefuehrendste aller Meldungen. Ohne Schluessel
+        # meldet litellm sauber, dass keiner da ist.
+        kwargs.pop("api_key", None)
+        logger.warning(
+            "model-Override auf Provider '%s', aber kein Schluessel dafuer in der Umgebung "
+            "(erwartet: %s). Der Schluessel des verdrahteten Providers wurde entfernt, "
+            "statt ihn an den fremden Provider zu schicken.",
+            neuer_provider,
+            _env_var_name(neuer_provider),
+        )
 
 
 # ---------------------------------------------------------------------------
