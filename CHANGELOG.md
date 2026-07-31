@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [0.11.6] — 2026-07-31
+
+### Fixed
+- **`model`-Override zieht den Schluessel seines Providers mit** (`_build_kwargs`).
+  Ein Override auf einen fremden Provider tauschte bisher nur den Modellstring;
+  `api_key` blieb der des VERDRAHTETEN Providers. Wer `model="groq/..."` gegen eine
+  auf OpenAI verdrahtete Action setzte, schickte den OpenAI-Schluessel an Groq und
+  bekam "Invalid API Key" — eine Meldung, die wie ein toter Schluessel aussieht,
+  obwohl beide gueltig sind. Ein ausdruecklich mitgegebener `api_key` gewinnt
+  weiterhin, damit bereits ausgerollte Workarounds unveraendert laufen. Ist fuer den
+  Ziel-Provider kein Schluessel da, wird der fremde ENTFERNT statt weitergereicht.
+- **`_resolve_api_key` faellt auf die Konvention `<PROVIDER>_API_KEY` zurueck.** Die
+  bisherige Map kannte vier Provider (anthropic/openai/google/gemini); groq, mistral,
+  deepseek und alles Weitere fielen still auf `""` — und ein leerer Schluessel liest
+  sich beim Provider zeichengleich wie ein ungueltiger.
+
+
 ### Added (writing-hub REC-10 — call-metadata traceability)
 - **`LLMResult.call_id`**: new additive field carrying the `AIUsageLog` row's
   primary key for this call as a string, or `""` if usage-logging failed
