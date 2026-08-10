@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+### Changed
+- **`litellm` wird erst beim ersten echten LLM-Bedarf importiert.** Der Import
+  stand auf Modulebene in `service.py` **und** in `cost.py` — letzteres wird von
+  `aifw/__init__.py` gezogen, weshalb schon ein blankes `import aifw` das Paket
+  nachlud. Gemessen: `import aifw` 189 MB → **26 MB**; `import litellm` allein
+  kostet 176 MB (12 MB → 188 MB).
+
+  Getroffen hat das jeden Prozess, der aifw über `AppConfig.ready()` lädt — auch
+  einen `celery beat`, der nie ein Modell aufruft. Realfall tax-hub: nach der
+  Aufnahme von `"aifw"` in `INSTALLED_APPS` lief `beat` (Limit 128 MB) sofort in
+  `OOMKilled` (ExitCode 137, RestartCount 10), `web` stand bei 98,9 % seines
+  Limits.
+
+  Neu: `service._litellm()` und `cost._litellm()` als Zugriffspunkte
+  (`suppress_debug_info` wird dort einmalig gesetzt). Ein Modul-`__getattr__`
+  wäre hier wirkungslos — es greift nur bei Attributzugriffen von außen, nicht
+  bei der Namensauflösung innerhalb der Module.
+
+  **Bruch an einer internen Stelle:** `service._TRANSIENT_ERRORS` entfällt. Das
+  Typen-Tupel brauchte die Exception-Klassen zur Dekorationszeit und hätte
+  litellm damit wieder eager gezogen. Der Retry entscheidet jetzt über das
+  Prädikat `service._is_transient` (`retry_if_exception` statt
+  `retry_if_exception_type`); Verhalten unverändert, inklusive des konservativen
+  Fallbacks „im Zweifel wiederholen", wenn litellm nicht importierbar ist. Tests,
+  die `aifw.cost.litellm` patchen, patchen jetzt `aifw.cost._litellm`.
+
+  Ein Wächter-Test (`tests/test_litellm_import_is_lazy.py`) prüft in einem
+  Subprozess, dass `import aifw` litellm nicht nachzieht — sonst wandert der
+  eager Import beim nächsten Refactoring unbemerkt zurück.
+
 ## [0.11.6] — 2026-07-31
 
 ### Fixed

@@ -130,11 +130,32 @@ def test_should_reject_list_as_rendered_prompt():
 # ---------------------------------------------------------------------------
 
 
-def test_should_expose_transient_errors_tuple():
-    """_TRANSIENT_ERRORS must not include generic Exception."""
-    from aifw.service import _TRANSIENT_ERRORS
+def test_should_not_treat_generic_exception_as_transient():
+    """Ein beliebiger Fehler darf keinen Retry ausloesen.
 
-    assert Exception not in _TRANSIENT_ERRORS
+    Ersetzt den frueheren Test auf ``_TRANSIENT_ERRORS``. Das Typen-Tupel gibt
+    es nicht mehr — es haette litellm auf Modulebene erzwungen (176 MB
+    Grundlast pro Prozess). Geprueft wird jetzt dieselbe Zusage am Praedikat,
+    das der Retry tatsaechlich benutzt.
+    """
+    from aifw.service import _is_transient
+
+    assert _is_transient(Exception("irgendwas")) is False
+    assert _is_transient(ValueError("kein Provider-Fehler")) is False
+
+
+def test_should_treat_provider_rate_limit_as_transient():
+    """Der Fall, fuer den der Retry gebaut ist, muss weiterhin greifen."""
+    from litellm.exceptions import RateLimitError
+
+    from aifw.service import _is_transient
+
+    try:
+        exc = RateLimitError(message="slow down", llm_provider="openai", model="gpt-4o")
+    except TypeError:
+        exc = RateLimitError("slow down")
+
+    assert _is_transient(exc) is True
 
 
 # ---------------------------------------------------------------------------

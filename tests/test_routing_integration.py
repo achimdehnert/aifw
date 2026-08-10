@@ -168,12 +168,17 @@ def test_should_invalidate_completion_config_cache_for_code():
 @pytest.mark.asyncio
 async def test_should_retry_transient_error_then_succeed():
     """_acompletion_with_retry retries transient errors instead of failing once."""
-    from aifw.service import _RETRY_ENABLED, _TRANSIENT_ERRORS, _acompletion_with_retry
+    from litellm.exceptions import RateLimitError
+
+    from aifw.service import _RETRY_ENABLED, _acompletion_with_retry
 
     if not _RETRY_ENABLED:
         pytest.skip("tenacity not installed — retry layer disabled")
 
-    exc_cls = _TRANSIENT_ERRORS[0]
+    # Frueher ueber _TRANSIENT_ERRORS[0] geholt. Das Typen-Tupel gibt es nicht
+    # mehr — es haette litellm auf Modulebene erzwungen (176 MB Grundlast).
+    # Der Retry entscheidet jetzt ueber das Praedikat _is_transient.
+    exc_cls = RateLimitError
     try:
         transient = exc_cls(message="rate limited", llm_provider="openai", model="gpt-4o")
     except TypeError:

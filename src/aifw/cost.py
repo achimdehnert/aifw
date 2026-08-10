@@ -2,6 +2,13 @@
 
 Tries litellm.cost_per_token() first (precise, model-aware),
 falls back to built-in rate table. Always returns Decimal, never raises.
+
+``litellm`` wird bewusst **nicht** auf Modulebene importiert: ``aifw/__init__``
+zieht dieses Modul, und ``import litellm`` kostet rund 176 MB (gemessen
+2026-08-10: 12 MB -> 188 MB). Damit haette jeder Prozess, der aifw auch nur
+importiert, diese Grundlast getragen — auch ein ``celery beat``, der nie ein
+Modell aufruft. Realfall tax-hub: beat lief mit 128 MB Limit sofort in
+OOMKilled.
 """
 
 from __future__ import annotations
@@ -9,10 +16,21 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-import litellm
-
 if TYPE_CHECKING:
     from aifw.schema import LLMResult
+
+
+def _litellm():
+    """Laedt litellm beim ersten echten Bedarf (siehe Modul-Docstring).
+
+    Bewusst eine Funktion und kein Modul-``__getattr__``: letzteres greift nur
+    bei Attributzugriffen auf das Modul von aussen, nicht bei der
+    Namensaufloesung innerhalb dieser Datei — dort gaebe es einen NameError.
+    Tests patchen entsprechend ``aifw.cost._litellm``.
+    """
+    import litellm
+
+    return litellm
 
 # Coarse last-resort fallback rates in $/1M tokens (input, output), keyed by
 # well-known model ids. litellm.cost_per_token() is the source of truth and
@@ -85,9 +103,11 @@ def estimate_cost(
     if not model or (input_tokens == 0 and output_tokens == 0):
         return Decimal("0")
 
-    # 1. Try litellm (precise, up-to-date rates)
+    # 1. Try litellm (precise, up-to-date rates) — lazy geladen, siehe
+    # Modul-Docstring. Ein ImportError faellt hier auf die Tabelle unten
+    # zurueck, wie jeder andere Fehler auch.
     try:
-        prompt_cost, completion_cost = litellm.cost_per_token(
+        prompt_cost, completion_cost = _litellm().cost_per_token(
             model=model,
             prompt_tokens=input_tokens,
             completion_tokens=output_tokens,

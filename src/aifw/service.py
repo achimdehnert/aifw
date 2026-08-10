@@ -36,7 +36,6 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
-import litellm
 from asgiref.sync import sync_to_async
 
 from aifw.constants import VALID_PRIORITIES, QualityLevel
@@ -49,7 +48,25 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-litellm.suppress_debug_info = True
+
+def _litellm():
+    """Laedt litellm beim ersten echten Bedarf und merkt es sich im Modul-Cache.
+
+    ``import litellm`` kostet rund **176 MB** (gemessen 2026-08-10:
+    12 MB -> 188 MB). Auf Modulebene traf das jeden Prozess, der aifw ueber
+    ``AppConfig.ready()`` laedt — auch einen ``celery beat``, der nie ein
+    Modell aufruft. Realfall tax-hub: beat lief mit 128 MB Limit sofort in
+    OOMKilled (ExitCode 137), web stand bei 98,9 % seines Limits.
+
+    Nach dem ersten Aufruf ist der Import in ``sys.modules`` und praktisch
+    kostenlos; der eigentliche LLM-Aufruf dominiert die Latenz ohnehin.
+    """
+    import litellm
+
+    if not getattr(litellm, "_aifw_configured", False):
+        litellm.suppress_debug_info = True
+        litellm._aifw_configured = True
+    return litellm
 
 # ---------------------------------------------------------------------------
 # Hybrid 2-layer cache
@@ -376,26 +393,39 @@ _RETRY_ENABLED: bool = True
 try:
     from tenacity import (
         retry,
-        retry_if_exception_type,
+        retry_if_exception,
         stop_after_attempt,
         wait_exponential,
     )
 
-    try:
-        from litellm.exceptions import (
-            APIConnectionError,
-            RateLimitError,
-            ServiceUnavailableError,
-            Timeout,
-        )
+    def _is_transient(exc: BaseException) -> bool:
+        """Ist der Fehler ein voruebergehender Provider-Fehler?
 
-        _TRANSIENT_ERRORS = (RateLimitError, ServiceUnavailableError, Timeout, APIConnectionError)
-    except ImportError:
-        _TRANSIENT_ERRORS = (Exception,)  # type: ignore[assignment]
+        Prueft ueber ein Praedikat statt ueber ``retry_if_exception_type`` mit
+        importierten Klassen: letzteres braucht die Typen schon zur
+        Dekorationszeit und haette litellm wieder auf Modulebene gezogen (die
+        176 MB aus ``_litellm``). Wenn dieses Praedikat laeuft, ist litellm
+        laengst geladen — der Import hier ist dann gratis.
+
+        Ist litellm gar nicht importierbar, wird konservativ wiederholt: das
+        entspricht dem frueheren Fallback ``_TRANSIENT_ERRORS = (Exception,)``.
+        """
+        try:
+            from litellm.exceptions import (
+                APIConnectionError,
+                RateLimitError,
+                ServiceUnavailableError,
+                Timeout,
+            )
+        except ImportError:
+            return True
+        return isinstance(
+            exc, (RateLimitError, ServiceUnavailableError, Timeout, APIConnectionError)
+        )
 
     def _make_retry(fn):  # type: ignore[return]
         return retry(
-            retry=retry_if_exception_type(_TRANSIENT_ERRORS),
+            retry=retry_if_exception(_is_transient),
             stop=stop_after_attempt(3),
             wait=wait_exponential(multiplier=1, min=1, max=10),
             reraise=True,
@@ -415,7 +445,7 @@ async def _acompletion_with_retry(**kwargs: Any) -> Any:
     Applied to non-streaming completions only — streaming responses must not
     be retried mid-iteration. No-op passthrough when tenacity is unavailable.
     """
-    return await litellm.acompletion(**kwargs)
+    return await _litellm().acompletion(**kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -934,7 +964,7 @@ async def completion_stream(
         if tool_choice:
             kwargs["tool_choice"] = tool_choice
 
-    response = await litellm.acompletion(**kwargs)
+    response = await _litellm().acompletion(**kwargs)
     async for chunk in response:
         delta = chunk.choices[0].delta
         if delta and delta.content:
@@ -964,7 +994,7 @@ def sync_completion_stream(
             config = await get_model_config(action_code, quality_level, priority)
             kwargs = _build_kwargs(config, messages, dict(overrides))
             kwargs["stream"] = True
-            response = await litellm.acompletion(**kwargs)
+            response = await _litellm().acompletion(**kwargs)
             async for chunk in response:
                 delta = chunk.choices[0].delta
                 if delta and delta.content:
