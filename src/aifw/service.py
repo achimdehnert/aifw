@@ -36,7 +36,6 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
-import litellm
 from asgiref.sync import sync_to_async
 
 from aifw.constants import VALID_PRIORITIES, QualityLevel
@@ -49,7 +48,20 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-litellm.suppress_debug_info = True
+# litellm wird erst beim ersten LLM-Aufruf importiert — der volle Import kostet
+# ~190 MiB RSS und gehoert nicht in den Django-Boot-Pfad (platform#1899).
+litellm = None
+
+
+def _ensure_litellm():
+    global litellm
+    if litellm is None:
+        import litellm as _litellm
+
+        _litellm.suppress_debug_info = True
+        litellm = _litellm
+    return litellm
+
 
 # ---------------------------------------------------------------------------
 # Hybrid 2-layer cache
@@ -376,26 +388,31 @@ _RETRY_ENABLED: bool = True
 try:
     from tenacity import (
         retry,
-        retry_if_exception_type,
+        retry_if_exception,
         stop_after_attempt,
         wait_exponential,
     )
 
-    try:
-        from litellm.exceptions import (
-            APIConnectionError,
-            RateLimitError,
-            ServiceUnavailableError,
-            Timeout,
-        )
+    def _is_transient(exc: BaseException) -> bool:
+        # Erst im Fehlerfall aufgeloest — dann ist litellm bereits importiert;
+        # so bleibt litellm.exceptions aus dem Modul-Import-Pfad heraus.
+        try:
+            from litellm.exceptions import (
+                APIConnectionError,
+                RateLimitError,
+                ServiceUnavailableError,
+                Timeout,
+            )
+        except ImportError:
+            return isinstance(exc, Exception)
 
-        _TRANSIENT_ERRORS = (RateLimitError, ServiceUnavailableError, Timeout, APIConnectionError)
-    except ImportError:
-        _TRANSIENT_ERRORS = (Exception,)  # type: ignore[assignment]
+        return isinstance(
+            exc, (RateLimitError, ServiceUnavailableError, Timeout, APIConnectionError)
+        )
 
     def _make_retry(fn):  # type: ignore[return]
         return retry(
-            retry=retry_if_exception_type(_TRANSIENT_ERRORS),
+            retry=retry_if_exception(_is_transient),
             stop=stop_after_attempt(3),
             wait=wait_exponential(multiplier=1, min=1, max=10),
             reraise=True,
@@ -415,7 +432,7 @@ async def _acompletion_with_retry(**kwargs: Any) -> Any:
     Applied to non-streaming completions only — streaming responses must not
     be retried mid-iteration. No-op passthrough when tenacity is unavailable.
     """
-    return await litellm.acompletion(**kwargs)
+    return await _ensure_litellm().acompletion(**kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -934,7 +951,7 @@ async def completion_stream(
         if tool_choice:
             kwargs["tool_choice"] = tool_choice
 
-    response = await litellm.acompletion(**kwargs)
+    response = await _ensure_litellm().acompletion(**kwargs)
     async for chunk in response:
         delta = chunk.choices[0].delta
         if delta and delta.content:
@@ -964,7 +981,7 @@ def sync_completion_stream(
             config = await get_model_config(action_code, quality_level, priority)
             kwargs = _build_kwargs(config, messages, dict(overrides))
             kwargs["stream"] = True
-            response = await litellm.acompletion(**kwargs)
+            response = await _ensure_litellm().acompletion(**kwargs)
             async for chunk in response:
                 delta = chunk.choices[0].delta
                 if delta and delta.content:

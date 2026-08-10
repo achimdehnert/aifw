@@ -130,11 +130,14 @@ def test_should_reject_list_as_rendered_prompt():
 # ---------------------------------------------------------------------------
 
 
-def test_should_expose_transient_errors_tuple():
-    """_TRANSIENT_ERRORS must not include generic Exception."""
-    from aifw.service import _TRANSIENT_ERRORS
+def test_should_not_retry_generic_exceptions():
+    """_is_transient darf generische Exceptions nicht als retry-wuerdig einstufen."""
+    from litellm.exceptions import RateLimitError
 
-    assert Exception not in _TRANSIENT_ERRORS
+    from aifw.service import _is_transient
+
+    assert not _is_transient(Exception("boom"))
+    assert _is_transient(RateLimitError(message="rl", llm_provider="openai", model="gpt-4o"))
 
 
 # ---------------------------------------------------------------------------
