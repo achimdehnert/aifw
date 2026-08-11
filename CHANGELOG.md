@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.11.7] — 2026-08-11
+
 ### Changed
 - **litellm wird lazy importiert** (platform#1899, Kriterium 3). `import aifw` zog
   bisher ueber `aifw.cost`/`aifw.service` das komplette litellm-Paket in den
