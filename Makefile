@@ -22,8 +22,15 @@ test:
 test-v:
 	$(PYTHON) -m pytest tests/ --tb=short -v
 
+# Deckungsgleich mit dem CI-Lint-Job (_ci-pypi.yml): der faehrt `ruff check .`
+# UND `ruff format --check .`. Solange hier nur `ruff check src/ tests/` stand,
+# konnte `make lint` gruen sein und der Job trotzdem rot — einmal real passiert
+# (PR #39: zwei fehlende Leerzeilen in cost.py/service.py, lokal unsichtbar).
+# Wer den Umfang hier aendert, aendert ihn auch dort — sonst faellt die Luecke
+# wieder erst in der CI auf.
 lint:
-	ruff check src/ tests/
+	ruff check .
+	ruff format --check .
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
