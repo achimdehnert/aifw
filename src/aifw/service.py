@@ -34,6 +34,7 @@ import threading
 import time
 import uuid
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from asgiref.sync import sync_to_async
@@ -447,15 +448,28 @@ def _build_model_string(provider_name: str, model_name: str) -> str:
     return f"{provider}/{model_name}"
 
 
-def _resolve_api_key(provider_name: str, env_var: str) -> str:
-    """Resolve an API key from the environment by explicit env var first, then
-    by a provider-name fallback map. Returns '' if nothing is configured.
+#: Verzeichnis fuer gemountete Secret-Dateien (Docker-/Compose-Konvention).
+#: Ueber AIFW_SECRETS_DIR ueberschreibbar — fuer Tests und fuer Betreiber, die
+#: woanders mounten.
+DEFAULT_SECRETS_DIR = "/run/secrets"
 
-    Kept separate from cached config so secrets are never written to the
-    shared cache — the key is re-resolved fresh on every call.
+
+def _key_aus_datei(pfad: str | Path) -> str:
+    """Liest einen Schluessel aus einer Datei. Leerstring, wenn nicht lesbar.
+
+    Das ``.strip()`` ist notwendig, nicht kosmetisch: eine per Editor oder
+    ``echo`` erzeugte Secret-Datei endet fast immer mit einem Zeilenumbruch.
+    Wandert der in den Authorization-Header, lehnt der Provider den Schluessel
+    ab — mit derselben Meldung wie bei einem wirklich ungueltigen.
     """
-    if env_var:
-        return os.environ.get(env_var, "")
+    try:
+        return Path(pfad).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _fallback_env_var(provider_name: str) -> str:
+    """Variablenname eines Providers, wenn die Action keinen hinterlegt hat."""
     if not provider_name:
         return ""
     # Erst die ausdruecklich hinterlegten Namen, dann die Konvention
@@ -469,8 +483,49 @@ def _resolve_api_key(provider_name: str, env_var: str) -> str:
         "gemini": "GEMINI_API_KEY",
     }
     schluessel = provider_name.lower()
-    env_var = fallback_map.get(schluessel) or _env_var_name(schluessel)
-    return os.environ.get(env_var, "")
+    return fallback_map.get(schluessel) or _env_var_name(schluessel)
+
+
+def _resolve_api_key(provider_name: str, env_var: str) -> str:
+    """Resolve an API key. Returns '' if nothing is configured.
+
+    Drei Quellen, in dieser Reihenfolge:
+
+    1. die Umgebungsvariable selbst (``GROQ_API_KEY``)
+    2. ``<VAR>_FILE`` — die Docker-/Compose-Konvention, den **Pfad** statt des
+       Wertes in die Umgebung zu stellen
+    3. ``<secrets-dir>/<variable in klein>`` — also ``/run/secrets/groq_api_key``
+
+    Grund fuer 2 und 3: Secrets werden im Betrieb als **Datei** in den Container
+    gemountet, nicht als Umgebungsvariable gesetzt. Solange hier nur
+    ``os.environ`` gelesen wurde, sah aifw einen sauber hinterlegten Schluessel
+    schlicht nicht. Gemessen 2026-08-10 auf Prod: drei aifw-Consumer (tax-hub,
+    risk-hub, ausschreibungs-hub), kein einziger mit einem LLM-Schluessel in der
+    Umgebung — waehrend daneben ``/opt/<app>/.secrets/<name>`` nach
+    ``/run/secrets/<name>`` gemountet wird.
+
+    Die Reihenfolge ist bewusst env-zuerst: bestehende Deployments, die den Wert
+    in der Umgebung fuehren, aendern ihr Verhalten dadurch nicht.
+
+    Kept separate from cached config so secrets are never written to the
+    shared cache — the key is re-resolved fresh on every call.
+    """
+    name = env_var or _fallback_env_var(provider_name)
+    if not name:
+        return ""
+
+    wert = os.environ.get(name, "")
+    if wert:
+        return wert
+
+    pfad = os.environ.get(f"{name}_FILE", "")
+    if pfad:
+        wert = _key_aus_datei(pfad)
+        if wert:
+            return wert
+
+    verzeichnis = os.environ.get("AIFW_SECRETS_DIR", DEFAULT_SECRETS_DIR)
+    return _key_aus_datei(Path(verzeichnis) / name.lower())
 
 
 def _env_var_name(provider_name: str) -> str:
