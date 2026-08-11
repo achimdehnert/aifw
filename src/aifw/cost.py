@@ -32,6 +32,7 @@ def _litellm():
 
     return litellm
 
+
 # Coarse last-resort fallback rates in $/1M tokens (input, output), keyed by
 # well-known model ids. litellm.cost_per_token() is the source of truth and
 # already covers current models precisely; this table is only consulted when
