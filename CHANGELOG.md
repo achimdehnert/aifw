@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Added
+- **API-Keys werden auch aus gemounteten Secret-Dateien gelesen.**
+  `_resolve_api_key` kannte bisher nur `os.environ`. Im Betrieb werden Secrets
+  aber als **Datei** in den Container gemountet
+  (`/opt/<app>/.secrets/<name>` → `/run/secrets/<name>`), nicht als
+  Umgebungsvariable gesetzt — aifw sah einen sauber hinterlegten Schlüssel
+  dadurch schlicht nicht.
+
+  Gemessen 2026-08-10 auf Prod: drei aifw-Consumer (tax-hub, risk-hub,
+  ausschreibungs-hub), **kein einziger** mit einem LLM-Schlüssel in der
+  Umgebung. Der Fehler fällt nicht auf, weil ein leerer Schlüssel beim Provider
+  dieselbe Meldung erzeugt wie ein ungültiger („Invalid API Key").
+
+  Neue Reihenfolge — env zuerst, damit bestehende Deployments ihr Verhalten
+  nicht ändern:
+
+  1. `GROQ_API_KEY`
+  2. `GROQ_API_KEY_FILE` (Docker-/Compose-Konvention: Pfad statt Wert)
+  3. `<AIFW_SECRETS_DIR|/run/secrets>/groq_api_key`
+
+  Der Dateiinhalt wird `.strip()`-t. Das ist notwendig, nicht kosmetisch: eine
+  per `echo` erzeugte Datei endet mit `\n`, und der landet sonst im
+  Authorization-Header — wieder mit derselben Meldung wie bei einem toten
+  Schlüssel. `AIFW_SECRETS_DIR` macht das Verzeichnis überschreibbar.
+
 ## [0.11.7] — 2026-08-11
 
 ### Changed
