@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.11.8] — 2026-08-11
+
 ### Added
 - **API-Keys werden auch aus gemounteten Secret-Dateien gelesen.**
   `_resolve_api_key` kannte bisher nur `os.environ`. Im Betrieb werden Secrets
