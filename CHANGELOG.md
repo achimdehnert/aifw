@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Changed
+- **litellm wird lazy importiert** (platform#1899, Kriterium 3). `import aifw` zog
+  bisher ueber `aifw.cost`/`aifw.service` das komplette litellm-Paket in den
+  Django-Boot-Pfad — gemessen ~190 MiB RSS pro Prozess (web, worker UND beat),
+  auch wenn der Prozess nie einen LLM-Call macht. Jetzt laedt litellm erst beim
+  ersten Kosten- bzw. Completion-Aufruf (`_ensure_litellm()`); der Retry-Filter
+  prueft litellm-Exceptions erst im Fehlerfall (`_is_transient` statt modul-level
+  `_TRANSIENT_ERRORS`-Tupel). Wer `aifw.service.litellm`/`aifw.cost.litellm` in
+  Tests patcht, bleibt kompatibel — das Attribut existiert weiter (lazy Slot).
+  Regressionstest: `tests/test_lazy_litellm.py` (Subprozess-Probe).
+
 ## [0.11.6] — 2026-07-31
 
 ### Fixed

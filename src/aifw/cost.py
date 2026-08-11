@@ -9,10 +9,22 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-import litellm
-
 if TYPE_CHECKING:
     from aifw.schema import LLMResult
+
+# litellm wird erst beim ersten Kostenaufruf importiert — der volle Import
+# kostet ~190 MiB RSS und gehoert nicht in den Django-Boot-Pfad (platform#1899).
+litellm = None
+
+
+def _ensure_litellm():
+    global litellm
+    if litellm is None:
+        import litellm as _litellm
+
+        litellm = _litellm
+    return litellm
+
 
 # Coarse last-resort fallback rates in $/1M tokens (input, output), keyed by
 # well-known model ids. litellm.cost_per_token() is the source of truth and
@@ -87,7 +99,7 @@ def estimate_cost(
 
     # 1. Try litellm (precise, up-to-date rates)
     try:
-        prompt_cost, completion_cost = litellm.cost_per_token(
+        prompt_cost, completion_cost = _ensure_litellm().cost_per_token(
             model=model,
             prompt_tokens=input_tokens,
             completion_tokens=output_tokens,
