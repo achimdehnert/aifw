@@ -123,3 +123,45 @@ class LLMResult:
         if match:
             return match.group(1).strip()
         return default
+
+
+@dataclass
+class EmbeddingResult:
+    """Ergebnis eines Embedding-Aufrufs — dieselbe Bauform wie :class:`LLMResult`.
+
+    Ein Fehlschlag ist ein Normalfall, kein Absturz: ``success=False`` mit
+    gefuelltem ``error``. Konsumenten, die ueber Zehntausende Textstuecke
+    laufen, muessen einen einzelnen fehlgeschlagenen Stapel ueberspringen
+    koennen, ohne den Lauf zu verlieren.
+    """
+
+    success: bool
+    vectors: list[list[float]] = field(default_factory=list)
+    model: str = ""
+    input_tokens: int = 0
+    latency_ms: int = 0
+    error: str = ""
+    call_id: str = ""
+    """Primary key der AIUsageLog-Zeile dieses Aufrufs, falls das Logging
+    geklappt hat (sonst leer) — analog zu :attr:`LLMResult.call_id`."""
+
+    @property
+    def dimensions(self) -> int:
+        """Laenge des ersten Vektors, 0 wenn nichts zurueckkam.
+
+        Die Dimension steht nicht im Voraus fest: sie haengt am Modell (und bei
+        OpenAI zusaetzlich am optionalen ``dimensions``-Parameter). Wer eine
+        Vektorspalte anlegt, muss sie am echten Aufruf messen, nicht raten.
+        """
+        return len(self.vectors[0]) if self.vectors else 0
+
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens
+
+    def estimate_cost(self) -> "Decimal":
+        """Kosten dieses Aufrufs. Embeddings haben nur Eingabe-Token."""
+
+        from aifw.cost import estimate_cost as _estimate_cost
+
+        return _estimate_cost(self.model, self.input_tokens, 0)

@@ -2,6 +2,49 @@
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-08-12
+
+### Added
+- **Embeddings über dieselbe Action-Verdrahtung wie Completions.**
+  `embedding()` / `sync_embedding()` routen über `get_model_config`, also über
+  denselben Lookup-Kaskade-Pfad (ADR-097 §5.1) wie `completion()`. Ein Konsument
+  verdrahtet damit ein Embedding-Modell als ganz normale Action und hält sich
+  ohne Zusatzarbeit an die `llm-routing`-Politik, statt einen Modellstring
+  hartzukodieren.
+
+  Anlass ist tax-hub: die Steuer-Recherche erreichte auf ihrem Gold-Set
+  Recall@10 0,46 bei einer Schwelle von 0,80, und die Restlücke ist lexikalisch
+  nicht schließbar — die deutsche Snowball-Konfiguration zerlegt keine
+  Komposita („Handwerker" → `handwerk` findet `handwerkerleist` nicht), und
+  Fachsynonyme wie „Verlustvortrag" / „Verlustabzug" haben gar keine
+  Wortüberschneidung. Ein semantischer Anteil ist der einzige Weg dorthin — und
+  aifw kannte bis hier keinen einzigen Embedding-Aufruf.
+
+  Drei Punkte, die bewusst so gebaut sind:
+
+  1. **`max_tokens` und `temperature` gehen nicht mit.** Beides ist am
+     Embedding-Endpunkt kein gültiger Parameter; OpenAI antwortet darauf mit
+     400. `_build_embedding_kwargs` baut deshalb einen eigenen Satz, erbt aber
+     Modellstring, Schlüssel, `api_base` und die Regel „der Schlüssel folgt
+     einem `model`-Override" (aifw#37) unverändert.
+  2. **Die Vektoren kommen in Eingabereihenfolge zurück**, sortiert nach dem
+     `index` der Provider-Antwort statt auf deren Reihenfolge zu vertrauen. Ein
+     vertauschter Vektor erzeugt keinen Fehler — er macht nur die Suche
+     schlechter, und das fällt erst Wochen später auf.
+  3. **Ein Fehlschlag ist ein Ergebnis, keine Ausnahme** (`success=False`).
+     Wer Zehntausende Textstücke einbettet, muss einen einzelnen Stapel
+     überspringen können, ohne den Lauf zu verlieren.
+
+  Die Stapelbildung bleibt beim Aufrufer: ein Aufruf ist ein Request. Ein Lauf
+  über einen ganzen Korpus braucht ohnehin Fortschritt und Wiederaufsetzen, und
+  eine Framework-Schleife könnte bei Abbruch nicht sagen, was schon
+  geschrieben wurde.
+
+  Neu exportiert: `embedding`, `sync_embedding`, `EmbeddingResult`
+  (mit `dimensions`, `total_tokens`, `estimate_cost()`). Die Nutzung wird wie
+  bei Completions in `AIUsageLog` erfasst — Embeddings zählen als Aufruf ohne
+  Ausgabe-Token.
+
 ## [0.11.8] — 2026-08-11
 
 ### Added
