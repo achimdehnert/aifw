@@ -41,7 +41,12 @@ from asgiref.sync import sync_to_async
 
 from aifw.constants import VALID_PRIORITIES, QualityLevel
 from aifw.exceptions import ConfigurationError
-from aifw.schema import LLMResult, RenderedPromptProtocol, ToolCall
+from aifw.schema import (
+    EmbeddingResult,
+    LLMResult,
+    RenderedPromptProtocol,
+    ToolCall,
+)
 from aifw.types import ActionConfig
 
 if TYPE_CHECKING:
@@ -1236,3 +1241,173 @@ def check_action_code(action_code: str) -> bool:
     except Exception as exc:
         logger.warning("check_action_code('%s') failed: %s", action_code, exc)
         return False
+
+
+# ---------------------------------------------------------------------------
+# Embeddings
+# ---------------------------------------------------------------------------
+
+
+@_make_retry
+async def _aembedding_with_retry(**kwargs: Any) -> Any:
+    """litellm.aembedding mit derselben Retry-Politik wie Completions."""
+    return await _ensure_litellm().aembedding(**kwargs)
+
+
+def _build_embedding_kwargs(
+    config: dict[str, Any],
+    texts: list[str],
+    overrides: dict[str, Any],
+) -> dict[str, Any]:
+    """Wie ``_build_kwargs``, aber ohne ``max_tokens``/``temperature``.
+
+    Beides ist bei Embedding-Endpunkten kein gueltiger Parameter — OpenAI
+    antwortet darauf mit 400. Der Rest (Modellstring, Schluessel, api_base,
+    Schluessel folgt einem ``model``-Override) ist bewusst identisch, damit
+    Embeddings dieselbe Verdrahtung erben wie Completions.
+    """
+    kwargs: dict[str, Any] = {
+        "model": config["model_string"],
+        "input": texts,
+    }
+    api_key = config.get("api_key", "")
+    if api_key:
+        kwargs["api_key"] = api_key
+    api_base = config.get("api_base")
+    if api_base:
+        kwargs["api_base"] = api_base
+    kwargs.update(overrides)
+    _follow_model_override(kwargs, config, overrides)
+    return kwargs
+
+
+async def embedding(
+    action_code: str,
+    texts: list[str] | str,
+    user=None,
+    tenant_id: uuid.UUID | str | None = None,
+    object_id: str = "",
+    metadata: dict[str, Any] | None = None,
+    quality_level: int | None = None,
+    priority: str | None = None,
+    **overrides: Any,
+) -> EmbeddingResult:
+    """Vektor-Embeddings ueber dieselbe Action-Verdrahtung wie ``completion``.
+
+    Der Aufruf routet ueber ``get_model_config`` — die Action bestimmt also
+    Provider, Modell und Schluessel, genau wie bei Completions. Damit gilt die
+    llm-routing-Politik auch fuer Embeddings, ohne dass ein Konsument einen
+    Modellstring hartverdrahtet.
+
+    **Ein Aufruf = ein Request.** Die Stapelbildung bleibt beim Aufrufer: wer
+    Zehntausende Textstuecke einbettet, braucht ohnehin Fortschritt,
+    Wiederaufsetzen und eine eigene Fehlerbehandlung je Stapel — das gehoert in
+    den Konsumenten, nicht hinter eine Framework-Schleife, die bei Abbruch
+    nicht sagen kann, was schon geschrieben wurde.
+
+    Args:
+        action_code: Action-Kennung, z. B. ``"recherche_embedding"``.
+        texts: Ein Text oder eine Liste; ein einzelner String wird zu einer
+            Liste mit einem Element (die Antwort traegt dann einen Vektor).
+        overrides: Werden an litellm durchgereicht, z. B. ``dimensions=1024``
+            bei OpenAI-Modellen der 3er-Reihe.
+
+    Returns:
+        :class:`EmbeddingResult`. Die Reihenfolge der Vektoren entspricht der
+        Reihenfolge der Eingabetexte — litellm sortiert die Provider-Antwort
+        nach ``index``.
+    """
+    if isinstance(texts, str):
+        texts = [texts]
+    if not texts:
+        return EmbeddingResult(success=False, error="Keine Texte uebergeben")
+
+    config = await get_model_config(action_code, quality_level, priority)
+    kwargs = _build_embedding_kwargs(config, list(texts), dict(overrides))
+
+    if not kwargs.get("model"):
+        return EmbeddingResult(
+            success=False,
+            error=f"No model configured for action {action_code!r}",
+        )
+
+    start_time = time.perf_counter()
+    try:
+        response = await _aembedding_with_retry(**kwargs)
+        latency_ms = int((time.perf_counter() - start_time) * 1000)
+        # litellm gibt die Provider-Antwort unveraendert weiter; OpenAI liefert
+        # die Elemente mit `index`. Nach `index` sortieren statt der Reihenfolge
+        # zu vertrauen — sonst haengt ein Vektor am falschen Text, und das faellt
+        # nie als Fehler auf, sondern nur als schlechte Suche.
+        elemente = sorted(
+            response.data,
+            key=lambda d: d.get("index", 0) if isinstance(d, dict) else d.index,
+        )
+        vektoren = [(e["embedding"] if isinstance(e, dict) else e.embedding) for e in elemente]
+        result = EmbeddingResult(
+            success=True,
+            vectors=vektoren,
+            model=getattr(response, "model", None) or kwargs["model"],
+            input_tokens=getattr(response.usage, "prompt_tokens", 0)
+            or getattr(response.usage, "total_tokens", 0),
+            latency_ms=latency_ms,
+        )
+    except Exception as e:
+        latency_ms = int((time.perf_counter() - start_time) * 1000)
+        logger.exception("Embedding call failed for action '%s'", action_code)
+        result = EmbeddingResult(
+            success=False,
+            error=str(e),
+            latency_ms=latency_ms,
+            model=kwargs.get("model", ""),
+        )
+
+    # Fuer die Kostenerfassung zaehlt ein Embedding wie ein Aufruf ohne Ausgabe.
+    result.call_id = await _log_usage(
+        config,
+        LLMResult(
+            success=result.success,
+            model=result.model,
+            input_tokens=result.input_tokens,
+            output_tokens=0,
+            latency_ms=result.latency_ms,
+            error=result.error,
+        ),
+        user=user,
+        tenant_id=tenant_id,
+        object_id=object_id,
+        metadata=metadata,
+        quality_level=quality_level,
+    )
+    return result
+
+
+def sync_embedding(
+    action_code: str,
+    texts: list[str] | str,
+    user=None,
+    tenant_id: uuid.UUID | str | None = None,
+    object_id: str = "",
+    metadata: dict[str, Any] | None = None,
+    quality_level: int | None = None,
+    priority: str | None = None,
+    **overrides: Any,
+) -> EmbeddingResult:
+    """Synchroner Wrapper — sicher in Views, Celery-Tasks, Management-Commands."""
+    coro = embedding(
+        action_code=action_code,
+        texts=texts,
+        user=user,
+        tenant_id=tenant_id,
+        object_id=object_id,
+        metadata=metadata,
+        quality_level=quality_level,
+        priority=priority,
+        **overrides,
+    )
+    try:
+        asyncio.get_running_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result(timeout=180)
+    except RuntimeError:
+        return asyncio.run(coro)

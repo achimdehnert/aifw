@@ -19,12 +19,18 @@ from aifw.constants import PrivacyMode, QualityLevel
 from aifw.cost import cost_from_rates, estimate_cost
 from aifw.exceptions import AIFWError, ConfigurationError, OrchestrationError
 from aifw.privacy import PrivacyHook, apply_privacy, get_privacy_hook
-from aifw.schema import LLMResult, RenderedPromptProtocol, ToolCall
+from aifw.schema import (
+    EmbeddingResult,
+    LLMResult,
+    RenderedPromptProtocol,
+    ToolCall,
+)
 from aifw.service import (
     check_action_code,
     completion,
     completion_stream,
     completion_with_fallback,
+    embedding,
     get_action_config,
     get_quality_level_for_tier,
     invalidate_action_cache,
@@ -33,6 +39,7 @@ from aifw.service import (
     sync_completion,
     sync_completion_stream,
     sync_completion_with_fallback,
+    sync_embedding,
 )
 from aifw.types import ActionConfig
 
@@ -51,6 +58,7 @@ __all__ = [
     "estimate_cost",
     # Types
     "ActionConfig",
+    "EmbeddingResult",
     "LLMResult",
     "RenderedPromptProtocol",
     "ToolCall",
@@ -68,10 +76,12 @@ __all__ = [
     "completion",
     "completion_stream",
     "completion_with_fallback",
+    "embedding",
     "invalidate_config_cache",
     "sync_completion",
     "sync_completion_stream",
     "sync_completion_with_fallback",
+    "sync_embedding",
 ]
 
 # Single source of truth: the version lives in pyproject.toml and is read back

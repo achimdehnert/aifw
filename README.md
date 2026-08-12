@@ -66,13 +66,13 @@ else:
 
 ```python
 from aifw.service import (
-    completion,                  # async
-    sync_completion,             # sync wrapper
-    completion_with_fallback,    # async, tries fallback model on error
+    completion,  # async
+    sync_completion,  # sync wrapper
+    completion_with_fallback,  # async, tries fallback model on error
     sync_completion_with_fallback,
-    sync_completion_stream,      # streaming generator
+    sync_completion_stream,  # streaming generator
     get_quality_level_for_tier,  # tier name → QualityLevel int
-    check_action_code,           # bool — action code exists in DB
+    check_action_code,  # bool — action code exists in DB
 )
 ```
 
@@ -87,9 +87,9 @@ from aifw.constants import QualityLevel
 from aifw.service import get_quality_level_for_tier, sync_completion
 
 # Map a subscription tier to a quality level (DB-driven via TierQualityMapping)
-ql = get_quality_level_for_tier("pro")          # → QualityLevel.BALANCED (5)
-ql = get_quality_level_for_tier("premium")      # → QualityLevel.PREMIUM  (8)
-ql = get_quality_level_for_tier("freemium")     # → QualityLevel.ECONOMY  (2)
+ql = get_quality_level_for_tier("pro")  # → QualityLevel.BALANCED (5)
+ql = get_quality_level_for_tier("premium")  # → QualityLevel.PREMIUM  (8)
+ql = get_quality_level_for_tier("freemium")  # → QualityLevel.ECONOMY  (2)
 
 result = sync_completion(
     "story_writing",
@@ -120,14 +120,16 @@ Art. 5 Abs. 1 lit. c):
 ```python
 # settings.py
 from aifw.constants import PrivacyMode
-AIFW_PRIVACY_MODE = PrivacyMode.PSEUDONYMOUS   # "full" (default) | "pseudonymous" | "anonymous"
+
+AIFW_PRIVACY_MODE = PrivacyMode.PSEUDONYMOUS  # "full" (default) | "pseudonymous" | "anonymous"
 AIFW_PRIVACY_HMAC_SECRET = env("AIFW_PRIVACY_HMAC_SECRET")  # optional; falls back to SECRET_KEY
 ```
 
 ```python
 # Call site stays the same — the hook transforms the row before it is written:
 sync_completion(
-    "nl2sql", messages,
+    "nl2sql",
+    messages,
     user=request.user,
     tenant_id=user.organization_id,
     metadata={"nl_question": question},
@@ -150,12 +152,15 @@ wire a real classifier via a **custom hook**:
 # myapp/privacy.py
 from aifw.privacy import PseudonymousHook
 
+
 def my_hook():
     from promptfw import classify_topic
+
     return PseudonymousHook(topic_classifier=classify_topic)
 
+
 # settings.py
-AIFW_PRIVACY_HOOK = "myapp.privacy:my_hook"   # dotted path → PrivacyHook / subclass / factory
+AIFW_PRIVACY_HOOK = "myapp.privacy:my_hook"  # dotted path → PrivacyHook / subclass / factory
 ```
 
 A custom hook receives the create-payload dict (keys: `user`, `tenant_id`,
@@ -177,10 +182,12 @@ small groups).
 from aifw.service import sync_completion_stream
 from django.http import StreamingHttpResponse
 
+
 def stream_story(request):
     def generate():
         for chunk in sync_completion_stream("story_writing", messages):
             yield chunk
+
     return StreamingHttpResponse(generate(), content_type="text/plain")
 ```
 
@@ -245,9 +252,9 @@ AIFW_CACHE_TTL=600          # shared cache TTL in seconds  (default: 600)
 ```python
 from aifw.service import invalidate_action_cache, invalidate_tier_cache
 
-invalidate_action_cache("story_writing")   # clear one action's cache entries
-invalidate_action_cache()                  # clear all
-invalidate_tier_cache("pro")               # clear one tier
+invalidate_action_cache("story_writing")  # clear one action's cache entries
+invalidate_action_cache()  # clear all
+invalidate_tier_cache("pro")  # clear one tier
 ```
 
 ## Constants
@@ -255,10 +262,10 @@ invalidate_tier_cache("pro")               # clear one tier
 ```python
 from aifw.constants import QualityLevel
 
-QualityLevel.ECONOMY   # 2
+QualityLevel.ECONOMY  # 2
 QualityLevel.BALANCED  # 5
-QualityLevel.PREMIUM   # 8
-QualityLevel.ALL       # (2, 5, 8)
+QualityLevel.PREMIUM  # 8
+QualityLevel.ALL  # (2, 5, 8)
 ```
 
 ## Configuration
@@ -267,8 +274,8 @@ QualityLevel.ALL       # (2, 5, 8)
 
 ```python
 INSTALLED_APPS = [
-    "aifw",           # core: LLMProvider, LLMModel, AIActionType, AIUsageLog, TierQualityMapping
-    "aifw.nl2sql",    # optional: NL2SQL models + migrations (requires `nl2sql` extra)
+    "aifw",  # core: LLMProvider, LLMModel, AIActionType, AIUsageLog, TierQualityMapping
+    "aifw.nl2sql",  # optional: NL2SQL models + migrations (requires `nl2sql` extra)
 ]
 ```
 
