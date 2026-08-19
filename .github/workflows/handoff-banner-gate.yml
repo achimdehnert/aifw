@@ -19,4 +19,4 @@ permissions:
 
 jobs:
   handoff-banner:
-    uses: iilgmbh/shared-ci/.github/workflows/handoff-banner-gate.yml@v1.1.7
+    uses: iilgmbh/shared-ci/.github/workflows/handoff-banner-gate.yml@v1.1.11
