@@ -20,7 +20,7 @@ def test_should_seed_groq_as_global_default():
 
     groq = LLMProvider.objects.get(name="groq")
     assert groq.api_key_env_var == "GROQ_API_KEY"
-    model = LLMModel.objects.get(provider=groq, name="llama-3.3-70b-versatile")
+    model = LLMModel.objects.get(provider=groq, name="openai/gpt-oss-120b")
     assert model.is_default is True
     assert model.is_active is True
     # Exactly one global default (Tier 1a, org policy llm-routing).
@@ -41,7 +41,7 @@ def test_should_wire_nl2sql_action_groq_default_with_anthropic_fallback():
 
     action = AIActionType.objects.get(code="nl2sql", quality_level=None, priority=None)
     assert action.default_model.provider.name == "groq"
-    assert action.default_model.name == "llama-3.3-70b-versatile"
+    assert action.default_model.name == "openai/gpt-oss-120b"
     assert action.fallback_model.provider.name == "anthropic"
     assert action.fallback_model.name == "claude-haiku-4-5"
     assert action.prompt_template_key == "nl2sql.system"

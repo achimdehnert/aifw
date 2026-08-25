@@ -2,6 +2,41 @@
 
 ## [Unreleased]
 
+### Added
+- **`check_aifw_config --liveness` — die Registry fragt die Anbieter selbst.**
+  Für jedes aktive `LLMModel` wird die Modellliste seines Anbieters abgerufen und
+  der Pin dagegen gehalten. Fünf Lagen, bewusst getrennt: `live` · `retired`
+  (Befund, Exit ≠ 0) · `key_rejected` (Befund — Schlüssel konfiguriert und
+  abgelehnt) · `no_key` (Abdeckungslücke, **kein** Befund) · `unreachable`.
+
+  Die Trennung von `no_key` und `key_rejected` ist nicht kosmetisch: ein Prüfer,
+  der in jeder Installation ohne Mistral-Schlüssel rot ist, wird abgeschaltet —
+  und prüft danach gar nichts mehr.
+
+  Als Orakel dient die **Modellliste**, nicht ein Testaufruf. Gemessen am
+  2026-08-25: ein Ein-Token-Aufruf gegen `claude-sonnet-5` — ein gelistetes
+  Modell — kam mit HTTP 400 zurück, weil das Konto kein Guthaben hatte. Ein auf
+  Testaufrufen gebauter Prüfer hätte den gesamten Anthropic-Katalog für tot
+  erklärt.
+
+### Fixed
+- **Der globale Default zeigte auf ein abgemeldetes Modell.**
+  `init_aifw_config` legte `groq/llama-3.3-70b-versatile` als Tier-1a-Default an.
+  Groq listet dieses Modell nicht mehr (gemessen 2026-08-25, 13 IDs, nicht
+  darunter). Da 19 Repos an diesem Paket hängen, holte jeder frische Seed den
+  toten Pin zurück — und `check_aifw_config` meldete grün, weil es nur
+  Catch-all-Zeilen prüfte.
+
+  Neu: Default `groq/openai/gpt-oss-120b`, zusätzlich `groq/qwen/qwen3.6-27b`.
+  `DEAD_MODELS` um vier upstream zurückgezogene IDs erweitert
+  (`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `zai-glm-4.7`,
+  `llama3.1-8b`) — bestehende Installationen deaktivieren sie beim nächsten Seed,
+  ohne Nutzungshistorie zu löschen.
+- **Der Anbieter `ollama` war ohne ein einziges Modell verdrahtet.**
+  „konfiguriert" und „benutzbar" waren zwei verschiedene Dinge; jetzt kommt
+  `qwen2.5:14b` mit. Bewusst ohne Preisfelder — lokale Inferenz hat keinen
+  Listenpreis, und eine geratene Zahl wäre schlechter als keine.
+
 ## [0.12.0] — 2026-08-12
 
 ### Added
