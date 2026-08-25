@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-08-25
+
 ### Added
 - **`check_aifw_config --liveness` — die Registry fragt die Anbieter selbst.**
   Für jedes aktive `LLMModel` wird die Modellliste seines Anbieters abgerufen und
