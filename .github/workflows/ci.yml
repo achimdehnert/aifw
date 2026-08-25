@@ -15,7 +15,13 @@ permissions:
 
 jobs:
   ci:
-    uses: achimdehnert/iilgmbh/shared-ci/.github/workflows/_ci-pypi.yml@main
+    # 2026-08-19 bis 2026-08-25 stand hier `achimdehnert/iilgmbh/shared-ci/...`:
+    # ein Pfadteil zu viel, wo GitHub `owner/repo` erwartet. Der Lauf scheiterte
+    # dann VOR jedem Job („workflow file issue") — kein Test, kein Lint, und auf
+    # PRs meldete `gh pr checks` „no checks reported", was wie Ruhe aussieht und
+    # „hier prueft nichts" heisst. In dem Fenster ging 0.13.0 nach PyPI (#53).
+    # Pin wie in iil-reflex nach demselben Sweep — nicht `@main`.
+    uses: iilgmbh/shared-ci/.github/workflows/_ci-pypi.yml@v1.1.11
     with:
       python_versions: '["3.12"]'
       install_extra: 'dev'
