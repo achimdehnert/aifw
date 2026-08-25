@@ -9,10 +9,14 @@ still belong in each consumer app's own fixture or management command.
 Model routing follows the org LLM policy (Groq/Cerebras free tier first,
 escalation to Claude Haiku 4.5 → Sonnet → Opus only when justified):
 
-    Tier 1a  groq/llama-3.3-70b-versatile   (global default)
+    Tier 1a  groq/openai/gpt-oss-120b       (global default)
     Tier 1a  cerebras/gpt-oss-120b
     Tier 2   anthropic/claude-haiku-4-5     (nl2sql fallback)
     Tier 3   anthropic/claude-sonnet-5
+
+Every model seeded here was confirmed against its provider's ``/models``
+endpoint on 2026-08-25. Run ``check_aifw_config --liveness`` to re-confirm —
+that is what this seed is checked with, not what it is trusted on.
 
 If ``iil-promptfw`` (extra ``[promptfw]``) is installed, the NL2SQL system
 prompt is additionally seeded as promptfw template ``nl2sql.system`` (ADR-146).
@@ -68,15 +72,26 @@ PROVIDERS = [
 
 MODELS = [
     # ── Tier 1a: free tier first (org policy llm-routing) ────────────────────
+    # ``llama-3.3-70b-versatile`` sat here as the global default until
+    # 2026-08-25, when Groq stopped listing it. Its replacement is the model the
+    # consuming repos had already switched to by hand.
     {
         "provider": "groq",
-        "name": "llama-3.3-70b-versatile",
-        "display_name": "Llama 3.3 70B Versatile (Groq)",
+        "name": "openai/gpt-oss-120b",
+        "display_name": "GPT-OSS 120B (Groq)",
         "max_tokens": 32768,
         "supports_tools": True,
-        "input_cost_per_million": 0.59,
-        "output_cost_per_million": 0.79,
+        # No price fields on purpose: litellm.cost_per_token() is the source of
+        # truth (see aifw.cost), and a guessed list price would be worse than
+        # none — it would look sourced.
         "is_default": True,
+    },
+    {
+        "provider": "groq",
+        "name": "qwen/qwen3.6-27b",
+        "display_name": "Qwen 3.6 27B (Groq)",
+        "max_tokens": 32768,
+        "supports_tools": True,
     },
     {
         "provider": "cerebras",
@@ -134,6 +149,18 @@ MODELS = [
         "input_cost_per_million": 1.25,
         "output_cost_per_million": 10.0,
     },
+    # A local model costs nothing and needs no key — but until 2026-08-25 the
+    # ollama provider was seeded without a single model, so "ollama is
+    # configured" and "ollama is usable" were two different things.
+    # No price fields: local inference has no per-token list price, and a
+    # guessed number would be worse than none.
+    {
+        "provider": "ollama",
+        "name": "qwen2.5:14b",
+        "display_name": "Qwen 2.5 14B (local)",
+        "max_tokens": 32768,
+        "supports_tools": True,
+    },
 ]
 
 # Seeded by earlier aifw versions, retired upstream (checked against
@@ -144,11 +171,22 @@ MODELS = [
 #                               invalid litellm prefix "google/gemini/…"
 # gpt-4o / gpt-4o-mini are outdated but still served → replaced in the seed
 # above, NOT deactivated in existing installs.
+#   llama-3.3-70b-versatile     retired at Groq; measured 2026-08-25 against
+#                               GET /openai/v1/models — 13 ids, not among them.
+#                               It was this package's GLOBAL DEFAULT, so every
+#                               fresh seed handed 19 consuming repos a dead pin.
+#   llama-3.1-8b-instant        same list, same day — the Tier-1b Groq slot.
+#   zai-glm-4.7                 Cerebras lists 2 ids on this account, not this one.
+#   llama3.1-8b                 same; the Tier-1b Cerebras slot.
 DEAD_MODELS = frozenset(
     {
         "claude-3-5-sonnet-20241022",
         "claude-3-haiku-20240307",
         "gemini/gemini-1.5-pro",
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "zai-glm-4.7",
+        "llama3.1-8b",
     }
 )
 
@@ -214,7 +252,7 @@ class Command(BaseCommand):
         (Tier 2) via the existing default/fallback mechanism.
         """
         default_model = LLMModel.objects.filter(
-            provider__name="groq", name="llama-3.3-70b-versatile"
+            provider__name="groq", name="openai/gpt-oss-120b"
         ).first()
         fallback_model = LLMModel.objects.filter(
             provider__name="anthropic", name="claude-haiku-4-5"
