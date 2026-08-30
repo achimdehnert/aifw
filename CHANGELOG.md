@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+## [0.13.1] — 2026-08-30
+
+### Fixed
+- **Die Cache-Invalidierung hat nie gefeuert.** Die vier Empfaenger in
+  `signals._connect_signals()` sind lokale Funktionen; mit Djangos Vorgabe
+  `weak=True` haelt nach dem Verlassen der Funktion nichts mehr eine starke
+  Referenz auf sie. Gemessen am 2026-08-30: `post_save.receivers` trug **4
+  Eintraege**, `_live_receivers()` lieferte **`[]`**, und ein Cache-Schluessel
+  ueberlebte ein `AIActionType.save(update_fields=[...])` unveraendert.
+  Damit wirkte in **jedem** Konsumenten ein Reseed bis zu `AIFW_CACHE_TTL`
+  (Vorgabe 600 s) nicht — waehrend eine Fehlermeldung, die frisch aus der DB
+  las, bereits die neue Verdrahtung nannte. Realfall: `writing-hub#766`, wo
+  die Meldung „groq, Schluessel gesetzt" zeigte, waehrend der Aufruf gegen
+  OpenAI lief. Fix: `weak=False` an allen acht Empfaengern (#56).
+- **Regressionstest, der die Verwechslung selbst festhaelt**
+  (`tests/test_signals_bleiben_scharf.py`): geprueft werden getrennt ein
+  *lebender* Empfaenger, das Ausbleiben *toter* Eintraege und der Cache-Inhalt
+  nach dem Speichern. Die Anwesenheit eines Eintrags ist ausdruecklich kein
+  Beleg fuers Feuern. Gegenprobe: ohne den Fix fallen 4 der 5 Tests.
+
+### Upgrade-Hinweis
+Konsumenten, die sich auf die Invalidierung beim Speichern verlassen, brauchen
+diese Version — ein expliziter `invalidate_action_cache()` im Reseed-Pfad war
+bis hierhin die einzige Invalidierung, die ueberhaupt wirkte.
+
+
 ## [0.13.0] — 2026-08-25
 
 ### Added
