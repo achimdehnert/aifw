@@ -207,7 +207,7 @@ def _validate_sql(sql: str, blocked: set[str]) -> str | None:
     # (platform#2546) und darf diesen Schutz nicht verlieren, wenn er auf diese
     # Engine umgestellt wird.
     # Ein abschliessendes Semikolon ist keine zweite Anweisung und bleibt erlaubt.
-    if _STACKED_STATEMENT.split(sql.rstrip().rstrip(";")) [1:]:
+    if _STACKED_STATEMENT.split(sql.rstrip().rstrip(";"))[1:]:
         return "Nur eine SQL-Anweisung ist erlaubt."
     for kw in FORBIDDEN_SQL_KEYWORDS:
         if re.search(rf"\b{kw}\b", upper):

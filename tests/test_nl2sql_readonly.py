@@ -10,7 +10,9 @@ and is not reproducible against the sqlite test DB.
 
 from unittest.mock import patch
 
-from aifw.nl2sql.engine import _execute_query
+import pytest
+
+from aifw.nl2sql.engine import _execute_query, _validate_sql
 
 
 class _FakeCursor:
@@ -85,11 +87,6 @@ def test_should_not_issue_postgres_only_statements_on_sqlite():
 # Anlass: der NL2SQL-Dienst in ttz-hub prueft das seit jeher selbst und soll auf
 # diese Engine umgestellt werden. Ohne diesen Schutz waere die Umstellung ein
 # Sicherheitsrueckschritt.
-import pytest
-
-from aifw.nl2sql.engine import _validate_sql
-
-
 @pytest.mark.parametrize(
     "sql",
     [
@@ -106,9 +103,9 @@ def test_should_reject_stacked_statements(sql):
     "sql",
     [
         "SELECT 1",
-        "SELECT 1;",            # abschliessendes Semikolon ist keine zweite Anweisung
+        "SELECT 1;",  # abschliessendes Semikolon ist keine zweite Anweisung
         "SELECT 1 ; ",
-        "SELECT ';' AS x",      # Semikolon im Stringliteral
+        "SELECT ';' AS x",  # Semikolon im Stringliteral
         "SELECT 'a;b' FROM t",
         "WITH x AS (SELECT 1) SELECT * FROM x",
     ],
