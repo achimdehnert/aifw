@@ -10,7 +10,9 @@ and is not reproducible against the sqlite test DB.
 
 from unittest.mock import patch
 
-from aifw.nl2sql.engine import _execute_query
+import pytest
+
+from aifw.nl2sql.engine import _execute_query, _validate_sql
 
 
 class _FakeCursor:
@@ -75,3 +77,40 @@ def test_should_not_issue_postgres_only_statements_on_sqlite():
     assert all("statement_timeout" not in s for s in stmts)  # SET LOCAL no-op guard
     tx.atomic.assert_not_called()
     assert stmts == ["SELECT 1 LIMIT 101"]
+
+
+# ── Stacked Queries (platform#2546) ──────────────────────────────────────────
+# Gemessen am 2026-08-31 gegen aifw 0.13.1: `SELECT * FROM a; SELECT pg_sleep(10)`
+# wurde durchgelassen. Die Keyword-Liste prueft die gesamte Zeichenkette und faengt
+# eine zweite Anweisung nur, wenn diese ein verbotenes Wort enthaelt — zwei SELECTs
+# bestehen sie, und das zweite kann trotzdem ein DoS sein.
+# Anlass: der NL2SQL-Dienst in ttz-hub prueft das seit jeher selbst und soll auf
+# diese Engine umgestellt werden. Ohne diesen Schutz waere die Umstellung ein
+# Sicherheitsrueckschritt.
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT 1; SELECT 2",
+        "SELECT * FROM a; SELECT pg_sleep(10)",
+        "WITH x AS (SELECT 1) SELECT * FROM x; SELECT 2",
+    ],
+)
+def test_should_reject_stacked_statements(sql):
+    assert _validate_sql(sql, set()) == "Nur eine SQL-Anweisung ist erlaubt."
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT 1",
+        "SELECT 1;",  # abschliessendes Semikolon ist keine zweite Anweisung
+        "SELECT 1 ; ",
+        "SELECT ';' AS x",  # Semikolon im Stringliteral
+        "SELECT 'a;b' FROM t",
+        "WITH x AS (SELECT 1) SELECT * FROM x",
+    ],
+)
+def test_should_allow_single_statements_and_semicolons_in_strings(sql):
+    # Der Gegenfall: die Regel darf nicht breiter greifen als gemeint. Ein
+    # Semikolon in einem Stringliteral ist Daten, keine Anweisungsgrenze.
+    assert _validate_sql(sql, set()) is None
