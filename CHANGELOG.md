@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-08-31
+
+### Security
+- **`NL2SQLEngine` liess Stacked Queries durch.** Gemessen gegen 0.13.1:
+  `_validate_sql("SELECT * FROM a; SELECT pg_sleep(10)", set())` gab `None`
+  zurueck. Die Keyword-Liste prueft die gesamte Zeichenkette und faengt eine
+  zweite Anweisung nur, wenn diese ein verbotenes Wort enthaelt — zwei SELECTs
+  bestehen sie, und das zweite kann ein DoS sein oder Daten ziehen, die die erste
+  Abfrage nicht erlaubt haette. `_validate_sql` lehnt jetzt jede Eingabe mit mehr
+  als einer Anweisung ab (achimdehnert/platform#2546, PR #58).
+
+  Die Pruefung ist quote-aware: `SELECT ';' AS x` bleibt erlaubt, ein
+  abschliessendes Semikolon zaehlt nicht als zweite Anweisung.
+
+  **Verhaltensaenderung:** Wer bewusst mehrere Anweisungen durch diese Engine
+  geschickt hat, bekommt ab 0.14.0 die Meldung *"Nur eine SQL-Anweisung ist
+  erlaubt."* Deshalb ein Minor- und kein Patch-Bump.
+
+  Herkunft: die Regex stammt aus dem NL2SQL-Eigenbau in ttz-hub, der diesen Fall
+  seit jeher abfing. Sie wandert hierher, damit der Dienst auf diese Engine
+  umgestellt werden kann, ohne den Schutz zu verlieren.
+
+
 ## [0.13.1] — 2026-08-30
 
 ### Fixed
