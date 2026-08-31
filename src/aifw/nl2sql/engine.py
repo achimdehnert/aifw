@@ -190,8 +190,25 @@ def _extract_sql(raw: str) -> str | None:
     return None
 
 
+# Ein `;` ausserhalb eines Stringliterals trennt zwei Anweisungen. Der Lookahead
+# zaehlt die einfachen Anführungszeichen rechts davon: bei gerader Anzahl steht das
+# Semikolon ausserhalb, bei ungerader innerhalb. `SELECT ';'` bleibt damit erlaubt,
+# `SELECT 1; SELECT 2` nicht.
+_STACKED_STATEMENT = re.compile(r";(?=(?:[^']*'[^']*')*[^']*$)")
+
+
 def _validate_sql(sql: str, blocked: set[str]) -> str | None:
     upper = sql.upper()
+    # Stacked Queries zuerst: die Keyword-Liste unten prueft die GESAMTE Zeichenkette
+    # und faengt eine zweite Anweisung nur, wenn diese ein verbotenes Wort enthaelt.
+    # `SELECT * FROM a; SELECT pg_sleep(10)` besteht sie — beide Haelften sind
+    # SELECTs, die zweite ist trotzdem ein DoS. Gemessen 2026-08-31 gegen aifw
+    # 0.13.1: durchgelassen. Der Dienst in ttz-hub prueft das seit jeher selbst
+    # (platform#2546) und darf diesen Schutz nicht verlieren, wenn er auf diese
+    # Engine umgestellt wird.
+    # Ein abschliessendes Semikolon ist keine zweite Anweisung und bleibt erlaubt.
+    if _STACKED_STATEMENT.split(sql.rstrip().rstrip(";")) [1:]:
+        return "Nur eine SQL-Anweisung ist erlaubt."
     for kw in FORBIDDEN_SQL_KEYWORDS:
         if re.search(rf"\b{kw}\b", upper):
             return f"Verbotenes Schlüsselwort: {kw}"
