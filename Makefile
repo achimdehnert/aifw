@@ -2,7 +2,8 @@
 
 .PHONY: install test test-v lint clean help
 
-PYTHON := python3
+# venv-first (platform#2591 K3): make setup fuellt ./.venv, make test soll es auch nutzen
+PYTHON := $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 PIP    := pip
 
 help:
