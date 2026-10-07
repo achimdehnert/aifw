@@ -21,7 +21,7 @@ jobs:
     # PRs meldete `gh pr checks` „no checks reported", was wie Ruhe aussieht und
     # „hier prueft nichts" heisst. In dem Fenster ging 0.13.0 nach PyPI (#53).
     # Pin wie in iil-reflex nach demselben Sweep — nicht `@main`.
-    uses: iilgmbh/shared-ci/.github/workflows/_ci-pypi.yml@v1.1.11
+    uses: iilgmbh/shared-ci/.github/workflows/_ci-pypi.yml@v1.1.17
     with:
       python_versions: '["3.12"]'
       install_extra: 'dev'
